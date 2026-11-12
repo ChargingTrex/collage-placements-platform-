@@ -1,0 +1,12 @@
+prn,email,full_name,department,school,year_of_study,batch,cgpa,phone,is_placement_eligible
+220200901,aarav.mehta@college.edu,Aarav Mehta,B.Tech Computer Science,computing_data_science,4,2026,8.72,9820011001,true
+220200902,diya.sharma@college.edu,Diya Sharma,B.Tech Computer Science,computing_data_science,4,2026,9.10,9820011002,true
+220200903,rohan.iyer@college.edu,Rohan Iyer,B.Tech Computer Science,computing_data_science,4,2026,7.45,9820011003,true
+220200904,sana.qureshi@college.edu,Sana Qureshi,B.Tech Data Science,computing_data_science,4,2026,8.05,9820011004,true
+220200905,kabir.nair@college.edu,Kabir Nair,B.Tech Data Science,computing_data_science,4,2026,6.80,9820011005,true
+230200906,ananya.rao@college.edu,Ananya Rao,B.Tech Artificial Intelligence,artificial_intelligence,4,2027,8.95,9820011006,true
+220200907,vihaan.patil@college.edu,Vihaan Patil,B.Tech Biotechnology,technology,4,2026,7.20,9820011007,true
+230200908,meera.joshi@college.edu,Meera Joshi,B.Tech Biotechnology,technology,4,2027,8.40,9820011008,true
+220200909,arjun.deshmukh@college.edu,Arjun Deshmukh,BBA (Hons.),business,4,2026,6.95,9820011009,true
+220200910,ishita.banerjee@college.edu,Ishita Banerjee,BBA (Hons.),business,4,2026,7.85,9820011010,true
+210200911,former.student@college.edu,Farhan Sheikh,B.Tech Computer Science,computing_data_science,4,2025,7.10,9820011011,false

@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+
+/* One place for the portal's palette, so role-coloured surfaces (student,
+   admin, company) stay consistent across every view. */
+@theme {
+  --color-ink-50: #f6f7f9;
+  --color-ink-100: #eceef2;
+  --color-ink-200: #d6dae2;
+  --color-ink-400: #8b93a3;
+  --color-ink-600: #4c5566;
+  --color-ink-800: #252c3a;
+  --color-ink-900: #161b26;
+
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe7ff;
+  --color-brand-500: #3b6fe0;
+  --color-brand-600: #2d57bd;
+  --color-brand-700: #234699;
+
+  --color-ok-50: #ecfdf5;
+  --color-ok-600: #059669;
+  --color-warn-50: #fffbeb;
+  --color-warn-600: #d97706;
+  --color-bad-50: #fef2f2;
+  --color-bad-600: #dc2626;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-50 text-ink-900 antialiased;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}

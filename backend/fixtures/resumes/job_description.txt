@@ -1,0 +1,15 @@
+Backend Engineer — Placement Drive 2026
+
+We are hiring a backend engineer to build and maintain REST APIs for our
+logistics platform. You will design database schemas, write Django views and
+serializers, tune PostgreSQL queries, and run background jobs with Celery.
+
+Required:
+- 2+ years of professional experience writing backend services in Python
+- Strong Django and Django REST Framework knowledge
+- Relational database design and SQL query optimisation, ideally PostgreSQL
+- Comfortable with Git, Docker and continuous integration
+- A bachelor's degree in computer science, engineering or a related field
+
+Nice to have: Celery or similar task queues, AWS deployment experience,
+writing unit and integration tests.

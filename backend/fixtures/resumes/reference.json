@@ -1,0 +1,37 @@
+{
+  "aarav_mehta_backend.pdf": {
+    "experience_years": 3.0,
+    "education_levels": [
+      "UG"
+    ],
+    "relevant_to_job_description": true
+  },
+  "sana_qureshi_data.docx": {
+    "experience_years": 2.5,
+    "education_levels": [
+      "Masters"
+    ],
+    "relevant_to_job_description": true
+  },
+  "kabir_nair_frontend.pdf": {
+    "experience_years": 0.5,
+    "education_levels": [
+      "UG"
+    ],
+    "relevant_to_job_description": false
+  },
+  "arjun_deshmukh_mechanical.docx": {
+    "experience_years": 4.0,
+    "education_levels": [
+      "UG"
+    ],
+    "relevant_to_job_description": false
+  },
+  "ishita_banerjee_marketing.pdf": {
+    "experience_years": 1.0,
+    "education_levels": [
+      "UG"
+    ],
+    "relevant_to_job_description": false
+  }
+}

@@ -1,0 +1,8 @@
+# Optional: the spaCy semantic-similarity backend described in the PRD.
+# The engine runs without these (it falls back to TF-IDF cosine similarity),
+# so CI and a clean checkout are not blocked on a 40MB model download.
+#
+#   pip install -r requirements-nlp.txt
+#   python -m spacy download en_core_web_md
+#   export MATCHING_BACKEND=spacy
+spacy==3.8.16

@@ -1,0 +1,31 @@
+# --- Core framework ---
+Django==5.1.6
+djangorestframework==3.15.2
+djangorestframework-simplejwt==5.4.0
+cryptography==44.0.0            # RS256 signing keys and the JWKS endpoint
+django-cors-headers==4.6.0
+django-filter==24.3
+
+# --- Config / infra ---
+python-dotenv==1.0.1
+dj-database-url==2.3.0
+psycopg[binary]==3.2.4           # PostgreSQL driver (docker-compose / prod)
+django-storages[s3]==1.14.4      # S3-compatible backend, config-only swap
+
+# --- Resume parsing & matching engine (Phase 2) ---
+PyPDF2==3.0.1
+python-docx==1.1.2
+scikit-learn==1.6.1              # TF-IDF fallback similarity backend
+numpy==2.2.2
+
+# --- Resume intelligence (optional services; imported lazily) ---
+httpx==0.28.1                    # Ollama's OpenAI-compatible API (LLM + embeddings)
+pymongo==4.10.1                  # MongoDB $vectorSearch store; local store when absent
+
+# --- Fixtures / sample data generation ---
+reportlab==4.2.5                 # builds the sample PDF resumes
+
+# --- Tests ---
+pytest==8.3.4
+pytest-django==4.9.0
+pytest-cov==6.0.0

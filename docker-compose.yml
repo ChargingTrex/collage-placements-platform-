@@ -1,0 +1,93 @@
+# Brings up backend + frontend + Postgres from a clean clone.
+#
+#   cp .env.example .env
+#   docker compose up --build
+#
+# Backend  http://localhost:8000/api/health
+# Frontend http://localhost:5173
+#
+# Add --build-arg INSTALL_NLP=true (or set INSTALL_NLP=true in .env) to bake
+# the spaCy model into the backend image.
+#
+# Resume intelligence services are opt-in, so the default bring-up above
+# needs nothing beyond .env:
+#
+#   docker compose --profile llm up       Ollama (then: docker compose exec
+#                                         ollama ollama pull llama3.1:8b
+#                                         && ... pull nomic-embed-text)
+#   docker compose --profile vectors up   MongoDB with $vectorSearch
+#
+# Then set LLM_ENABLED=true, LLM_BASE_URL=http://ollama:11434/v1 and
+# MONGO_URI=mongodb://mongo:27017/?directConnection=true in .env.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: placement
+      POSTGRES_PASSWORD: placement
+      POSTGRES_DB: placement
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U placement -d placement']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        INSTALL_NLP: ${INSTALL_NLP:-false}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://placement:placement@db:5432/placement
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,backend
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./backend:/app
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_PROXY: http://backend:8000
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ['llm']
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama:/root/.ollama
+
+  mongo:
+    # The Atlas local image: community MongoDB plus the search process that
+    # serves $vectorSearch. Development only; production points MONGO_URI at
+    # the college's own MongoDB deployment.
+    image: mongodb/mongodb-atlas-local:latest
+    profiles: ['vectors']
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodata:/data/db
+
+volumes:
+  pgdata:
+  ollama:
+  mongodata:
+  media:

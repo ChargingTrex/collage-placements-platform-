@@ -1,0 +1,38 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+/backend/media/
+/backend/staticfiles/
+
+# Environment
+.env
+.env.local
+
+# Node
+node_modules/
+/frontend/dist/
+/frontend/.vite/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.codegraph/
+
+# Generated fixtures (regenerate with: manage.py make_sample_resumes)
+/backend/fixtures/resumes/*.pdf
+/backend/fixtures/resumes/*.docx
+backend/.keys/
+
+# Local demo credentials: plain-text passwords, never for a shared repo
+DEMO_LOGINS.md

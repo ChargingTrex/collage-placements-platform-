@@ -1,0 +1,7 @@
+prn,email,full_name,department,batch,cgpa,phone,is_placement_eligible
+220200950,valid.student@college.edu,Valid Student,Computer Engineering,2026,8.10,9820019900,true
+,missing.prn@college.edu,Missing PRN,Computer Engineering,2026,7.00,,true
+220200952,not-an-email,Bad Email,Computer Engineering,2026,7.00,,true
+220200953,bad.cgpa@college.edu,Bad Cgpa,Electronics,2026,eleven,,true
+220200954,bad.batch@college.edu,Bad Batch,Electronics,next year,7.00,,true
+220200955,out.of.range@college.edu,Out Of Range,Mechanical,2026,14.5,,true
