@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from accounts import directory, views
+from accounts import demo, directory, views
 from accounts.jwks import jwks_view
 
 urlpatterns = [
@@ -21,4 +21,8 @@ urlpatterns = [
         directory.UserDirectorySummaryView.as_view(),
         name="auth-admin-users-summary",
     ),
+    # Always routed; both answer 404 unless DEBUG and DEMO_MODE are on, checked
+    # per request so a settings change cannot leave a stale route open.
+    path("demo/personas", demo.DemoPersonasView.as_view(), name="auth-demo-personas"),
+    path("demo/login", demo.DemoLoginView.as_view(), name="auth-demo-login"),
 ]
