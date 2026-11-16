@@ -18,7 +18,7 @@ from core.models import AuditLog
 from matching import llm
 from matching.models import StoredVector
 from matching.testing import FakeLLMClient, resume_reply
-from matching.vectorstore import FILTER_FIELDS
+from matching.vectorstore import FILTER_FIELDS, get_vector_store
 from profiles.analysis import profile_document, resume_digest, vector_doc_id
 from profiles.models import ExperienceEntry, ProfileSkill, ProjectEntry, ResumeAnalysis
 
@@ -749,6 +749,32 @@ class TestReindexVectorsCommand:
 
         assert not StoredVector.objects.exists()
         assert ResumeAnalysis.objects.get(profile=analysed).needs_reindex is True
+
+    def test_a_full_reindex_leaves_no_vector_from_another_model(self, analysed, llm_on, capsys):
+        """
+        After EMBED_MODEL changes, a vector no reindex will replace (its
+        profile is no longer analysed) shares no space with the new ones.
+        A full run removes every vector the current model did not make.
+        """
+        llm_on(FakeLLMClient())
+        store = get_vector_store()
+        store.upsert("orphan-old-model", [0.5] * 384, {}, "old-embed")
+        store.upsert(vector_doc_id(analysed), [0.5] * 384, {}, "old-embed")
+
+        call_command("reindex_vectors")
+
+        assert set(StoredVector.objects.values_list("model", flat=True)) == {"fake-embed"}
+        assert not StoredVector.objects.filter(doc_id="orphan-old-model").exists()
+        assert "removed 1 vector(s) from another model" in capsys.readouterr().out
+
+    def test_a_partial_reindex_removes_nothing(self, analysed, llm_on):
+        llm_on(FakeLLMClient())
+        get_vector_store().upsert("orphan-old-model", [0.5] * 384, {}, "old-embed")
+
+        call_command("reindex_vectors", "--prn", analysed.prn)
+        call_command("reindex_vectors", "--dirty-only")
+
+        assert StoredVector.objects.filter(doc_id="orphan-old-model").exists()
 
 
 # --- fixes from the Tasks 4-5 verification ------------------------------------------
