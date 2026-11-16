@@ -1449,7 +1449,7 @@ keeps the two in step.
 
 **Before this change**, a JD search with the LLM on did this:
 
-1. Embedded the JD (about 1 s).
+1. Embedded the JD (seconds; see the timings below).
 2. Asked Gemma to read it, within the 25 s analysis budget.
 3. Gemma on this CPU takes far longer, so every search waited about 25 s and
    got no reading. A failed reading is not cached, and no category was
@@ -1486,3 +1486,32 @@ manage.py read_jd demo_jds/data_analyst.txt --timeout 300
   model name.
 - With the default locmem cache, `read_jd` warns: the server would never see
   the reading.
+- Paste from the same `.txt` file given to `read_jd`. A copy from a rendered
+  page can change an em dash or the spacing inside the text, and then the
+  search misses the cache.
+- The test suite pins its cache to locmem whatever `.env` says, so running
+  the suite does not wipe the pre-read cache.
+
+**Cache-miss latency, measured** (the chat reading failed at once here; live,
+it adds up to `JD_READING_BUDGET_SECONDS`, 3 s). Gemma was busy on the same
+CPU throughout:
+
+```text
+run 0: embed+read_job 15.60s  search+score 0.15s   (cold: first call in the process)
+run 1: embed+read_job  0.79s  search+score 0.06s
+run 2: embed+read_job  1.59s  search+score 0.05s
+```
+
+So a warm search on an unread JD takes about 1–2 s plus at most 3 s. The
+first search after a server start is slower, so make one warm-up search
+before the demo.
+
+**Not verified:** whether Ollama stops generating when the 3 s chat request
+is dropped. If it does not, each search on an unread JD leaves Gemma
+generating in the background, and that slows the embeddings for the next
+searches. During this run, one embedding batch timed out at 120 s while
+Gemma was busy. Pre-read every demo JD.
+
+V3 re-run after the pruning change:
+`Reindexed 5; 0 failed. removed 0 vector(s) from another model.`, then
+`Recategorised 5; 0 changed.`

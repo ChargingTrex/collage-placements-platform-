@@ -95,7 +95,7 @@ def read_job(jd_text: str, *, record: bool = False) -> Job:
 
     Both model calls share the analysis time budget, so a slow server
     costs at most that before the request falls back to the text reading.
-    The embedding goes first: it takes a second where the chat reading can
+    The embedding goes first: it takes seconds where the chat reading can
     take longer than the whole budget on a CPU, and a reading that ran out
     of time must not also cost the search its vector ranking. The reading
     itself gets only `MATCH_SCORE["JD_READING_BUDGET_SECONDS"]`, so an
