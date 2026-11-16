@@ -57,6 +57,20 @@ def _client_ip(request) -> str | None:
     return request.META.get("REMOTE_ADDR")
 
 
+def signed_in(user: User) -> dict:
+    """
+    The tokens for a successful sign-in, with `last_login` stamped.
+
+    `authenticate` alone never writes it (only Django's session `login` does),
+    so without this the placement cell's users page shows nobody as ever
+    having signed in. A token refresh is not a sign-in and does not stamp it.
+    """
+    from django.contrib.auth.models import update_last_login
+
+    update_last_login(None, user)
+    return auth_response(user)
+
+
 def _otp_payload(issued: IssuedCode, message: str) -> dict:
     payload = {"detail": message, "expires_at": issued.expires_at}
     # DEBUG-only convenience so the prototype UI can be driven without
@@ -126,7 +140,7 @@ def verify(request):
     user.save(update_fields=["password"])
     user.mark_verified()
 
-    return Response(auth_response(user), status=status.HTTP_200_OK)
+    return Response(signed_in(user), status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
@@ -161,7 +175,7 @@ def login(request):
             {"detail": INVALID_CREDENTIALS}, status=status.HTTP_401_UNAUTHORIZED
         )
 
-    return Response(auth_response(authenticated), status=status.HTTP_200_OK)
+    return Response(signed_in(authenticated), status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
@@ -207,7 +221,7 @@ def otp_login(request):
     except OtpError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response(auth_response(user), status=status.HTTP_200_OK)
+    return Response(signed_in(user), status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])

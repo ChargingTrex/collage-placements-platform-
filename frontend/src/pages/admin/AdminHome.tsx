@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { profilesApi } from '@/api/profiles'
 import { rosterApi } from '@/api/roster'
+import { usersApi, type DirectorySummary } from '@/api/users'
 import { Card, CardTitle, PageHeader } from '@/components/ui'
 import { useAuth } from '@/auth/AuthContext'
 
@@ -11,6 +12,18 @@ export default function AdminHome() {
   const [counts, setCounts] = useState<{ students: number; openFlags: number } | null>(null)
 
   const [onboarded, setOnboarded] = useState<number | null>(null)
+  const [accounts, setAccounts] = useState<DirectorySummary | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    usersApi
+      .summary()
+      .then((summary) => !cancelled && setAccounts(summary))
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Separate from the roster counts so one failing does not blank the other.
   useEffect(() => {
@@ -67,6 +80,20 @@ export default function AdminHome() {
             </CardTitle>
             <p className="text-3xl font-semibold tabular-nums">{onboarded ?? '—'}</p>
             <p className="text-sm text-ink-600">students have completed onboarding</p>
+          </Card>
+        </Link>
+
+        <Link to="/admin/users" className="block transition hover:opacity-80">
+          <Card>
+            <CardTitle hint="Every account: students, placement admins and recruiters.">
+              All users
+            </CardTitle>
+            <p className="text-3xl font-semibold tabular-nums">{accounts?.total ?? '—'}</p>
+            <p className="text-sm text-ink-600">
+              {accounts
+                ? `${accounts.by_role.student} students · ${accounts.by_role.admin} admins · ${accounts.by_role.company} recruiters`
+                : 'accounts on the portal'}
+            </p>
           </Card>
         </Link>
       </div>

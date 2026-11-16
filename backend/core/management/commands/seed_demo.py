@@ -24,6 +24,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from accounts.models import Company, Role, User
+from core.demo_accounts import ADMINS, COMPANIES, DEMO_STUDENT_PRN, STUDENT_PASSWORD
 from matching import llm
 from matching.categories import record_job_description
 from matching.embeddings import get_embedder
@@ -33,17 +34,6 @@ from roster.importers import import_roster_csv
 from roster.models import FlaggedSignup, Student
 
 DEFAULT_ROSTER = Path(settings.BASE_DIR) / "fixtures" / "roster_sample.csv"
-
-ADMINS = [
-    ("placement.officer@college.edu", "Priya Kulkarni", "AdminPass!234"),
-]
-#: (organisation name, organisation email, recruiter login, recruiter name)
-COMPANIES = [
-    ("Acme Tech", "careers@acmetech.example",
-     "recruiter@acmetech.example", "Priya Raman", "CompanyPass!234"),
-    ("Nimbus Analytics", "careers@nimbusanalytics.example",
-     "talent@nimbusanalytics.example", "Dev Menon", "CompanyPass!234"),
-]
 
 #: Demo JDs with the reading an LLM would give them (`JobFacts` data).
 DEMO_JOBS = [
@@ -77,8 +67,6 @@ DEMO_JOBS = [
 ]
 
 
-STUDENT_PASSWORD = "StudentPass!234"
-
 #: Four demo students from roster_sample.csv, one per visibility case a
 #: company can run into. A reset database otherwise shows companies an empty
 #: browse page and gives nobody a student login to try.
@@ -103,8 +91,9 @@ DEMO_STUDENT_CGPA = {
 }
 
 DEMO_STUDENTS = [
-    {   # public and verified: appears in every company's search
-        "prn": "220200901", "visibility": "all", "verified": True,
+    {   # public and verified: appears in every company's search. Also the
+        # account the "student" demo persona signs in as.
+        "prn": DEMO_STUDENT_PRN, "visibility": "all", "verified": True,
         "resume": "aarav_mehta_backend.pdf",
         "headline": "Backend developer, Python and Django",
         "summary": "Final-year computer science student who has built and deployed REST APIs.",
@@ -217,7 +206,8 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write("Sign in with:")
         for email, _, password in ADMINS:
-            self.stdout.write(f"  admin    {email} / {password}")
+            admin_id = User.objects.filter(email=email).values_list("admin_id", flat=True).first()
+            self.stdout.write(f"  admin    {email} / {password}  ({admin_id})")
         for _, _, email, _, password in COMPANIES:
             self.stdout.write(f"  company  {email} / {password}")
         for prn, email, password, visibility, verified in demo_students:

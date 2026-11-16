@@ -16,6 +16,7 @@ const NAV_BY_ROLE = {
     { to: '/admin/flagged', label: 'Flagged signups' },
     { to: '/admin/profiles', label: 'Profiles' },
     { to: '/admin/outcomes', label: 'Outcomes' },
+    { to: '/admin/users', label: 'All users' },
   ],
   company: [
     { to: '/company', label: 'Dashboard', end: true },

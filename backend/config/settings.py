@@ -184,6 +184,22 @@ PLACEMENT = {
     "EXPOSE_OTP_IN_RESPONSE": env_bool("EXPOSE_OTP_IN_RESPONSE", DEBUG),
 }
 
+
+def demo_mode_from(debug: bool, requested: bool) -> bool:
+    """
+    One-click demo sign-in is allowed only on a DEBUG server.
+
+    The public link runs with DEBUG off, and a stray `DEMO_MODE=true` in its
+    environment must not hand out sessions without a password, so the request
+    is ignored there rather than trusted.
+    """
+    return bool(debug and requested)
+
+
+# Persona buttons on the login page and POST /api/auth/demo/login. Defaults
+# to DEBUG, and is forced off whenever DEBUG is off (WEEKEND_DEMO_PLAN D-W3).
+DEMO_MODE = demo_mode_from(DEBUG, env_bool("DEMO_MODE", DEBUG))
+
 # --- Matching engine (Phase 2) ---------------------------------------------
 
 MATCHING = {

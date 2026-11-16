@@ -95,3 +95,26 @@ def test_companies_see_what_each_visibility_setting_promises():
     assert visible_prns(login(*COMPANY_A)) == {PUBLIC_A, PUBLIC_B, SHORTLISTED}
     assert visible_prns(login(*COMPANY_B)) == {PUBLIC_A, PUBLIC_B}
     assert CompanyShortlist.objects.filter(profile__student__prn=SHORTLISTED).count() == 1
+
+
+def test_the_pilot_officer_is_a_placement_admin_with_their_own_admin_id():
+    output = seed()
+
+    shared = User.objects.get(email="placement.officer@college.edu")
+    pilot = User.objects.get(email="pilot.officer@college.edu")
+    assert pilot.is_placement_admin and pilot.may_log_in
+    assert pilot.admin_id.startswith("ADM-") and pilot.admin_id != shared.admin_id
+    assert pilot.full_name
+
+    # Signs in with the documented password, and the seed prints both it and
+    # the ADM- id it was issued, so the officer can be told which they are.
+    client = login("pilot.officer@college.edu", "PilotPass!234")
+    assert client.get("/api/auth/admin/users").status_code == 200
+    assert f"pilot.officer@college.edu / PilotPass!234  ({pilot.admin_id})" in output
+
+
+def test_re_seeding_keeps_the_pilot_officers_admin_id():
+    seed()
+    issued = User.objects.get(email="pilot.officer@college.edu").admin_id
+    seed()
+    assert User.objects.get(email="pilot.officer@college.edu").admin_id == issued

@@ -15,6 +15,7 @@ import RosterPage from '@/pages/admin/RosterPage'
 import OutcomesPage from '@/pages/admin/OutcomesPage'
 import ProfileDetailPage from '@/pages/admin/ProfileDetailPage'
 import ProfilesPage from '@/pages/admin/ProfilesPage'
+import UsersPage from '@/pages/admin/UsersPage'
 import CompanyHome from '@/pages/company/CompanyHome'
 import StudentDetailPage from '@/pages/company/StudentDetailPage'
 import StudentSearchPage from '@/pages/company/StudentSearchPage'
@@ -141,6 +142,16 @@ function AppRoutes() {
           <Shell>
             <RequireRole role="admin">
               <OutcomesPage />
+            </RequireRole>
+          </Shell>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <Shell>
+            <RequireRole role="admin">
+              <UsersPage />
             </RequireRole>
           </Shell>
         }
