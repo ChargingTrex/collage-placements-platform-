@@ -777,6 +777,17 @@ class TestReindexVectorsCommand:
 
         assert StoredVector.objects.filter(doc_id="orphan-old-model").exists()
 
+    def test_a_reindex_that_embedded_nothing_removes_nothing(self, llm_on, capsys):
+        """No analysed profile (a fresh database, a wrong DATABASE_URL):
+        nothing replaces the old vectors, so none are pruned."""
+        llm_on(FakeLLMClient())
+        get_vector_store().upsert("orphan-old-model", [0.5] * 384, {}, "old-embed")
+
+        call_command("reindex_vectors")
+
+        assert StoredVector.objects.filter(doc_id="orphan-old-model").exists()
+        assert "Reindexed 0" in capsys.readouterr().out
+
     def test_a_partial_reindex_removes_nothing(self, analysed, llm_on):
         llm_on(FakeLLMClient())
         get_vector_store().upsert("orphan-old-model", [0.5] * 384, {}, "old-embed")

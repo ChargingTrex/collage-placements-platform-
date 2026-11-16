@@ -1480,12 +1480,18 @@ manage.py read_jd demo_jds/data_analyst.txt --timeout 300
 - The pasted text must be the same after trimming leading and trailing
   whitespace. The search trims `jd_text`, and the cache key hashes the
   trimmed text.
-- A reading stays cached for a day (`JD_CACHE_SECONDS`), so pre-read on the
-  demo day.
+- A reading stays cached for a day by default (`JD_CACHE_SECONDS`). To
+  pre-read the evening before, give `read_jd --ttl 172800` (two days); a
+  rerun on a reading already cached restarts its clock. `read_jd` prints
+  when the reading expires. The "recorded" marker never expires before the
+  reading, so the JD is not counted in its category twice.
 - The cache key includes `LLM_MODEL`, so the server must run with the same
   model name.
 - With the default locmem cache, `read_jd` warns: the server would never see
   the reading.
+- With `CACHE_BACKEND=file`, DRF throttle counters persist across restarts
+  too. Clear `backend/.cache` (or your `CACHE_LOCATION`) before the demo,
+  then re-run `read_jd`.
 - Paste from the same `.txt` file given to `read_jd`. A copy from a rendered
   page can change an em dash or the spacing inside the text, and then the
   search misses the cache.

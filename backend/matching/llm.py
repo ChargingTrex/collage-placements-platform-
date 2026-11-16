@@ -862,13 +862,14 @@ def jd_cache_key(text: str, model: str) -> str:
     return f"jd-facts:{model}:{digest}"
 
 
-#: A day: the same JD pasted twice should not cost two model calls, and a
-#: JD's requirements do not change under it.
-JD_CACHE_SECONDS = 60 * 60 * 24
-
-
 def parse_job_description(text: str, client: LLMClient | None = None) -> JobFacts:
-    """Read a JD with the model, cached by the text's sha256."""
+    """
+    Read a JD with the model, cached by the text's sha256.
+
+    The reading is kept `settings.JD_CACHE_SECONDS` (a day by default): the
+    same JD pasted twice should not cost two model calls, and a JD's
+    requirements do not change under it.
+    """
     client = client or get_client()
     key = jd_cache_key(text, client.model)
     cached = cache.get(key)
@@ -876,5 +877,5 @@ def parse_job_description(text: str, client: LLMClient | None = None) -> JobFact
         return JobFacts(data=cached, model=client.model)
 
     data = _plain(_ask(client, JOB_SYSTEM_PROMPT, text, _normalise_job_reply, JobFactsSerializer))
-    cache.set(key, data, JD_CACHE_SECONDS)
+    cache.set(key, data, settings.JD_CACHE_SECONDS)
     return JobFacts(data=data, model=client.model)
