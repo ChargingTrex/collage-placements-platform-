@@ -181,6 +181,16 @@ class TestDemoLogin:
         keys = [p["key"] for p in api_client.get(PERSONAS).json()["personas"]]
         assert "student" not in keys
 
+    def test_a_student_with_the_seeded_prn_but_another_email_is_refused(
+        self, api_client, demo_on, make_student
+    ):
+        # A real database could hold a real student under that PRN; matching
+        # the PRN alone would sign the demo button into their account.
+        make_student(prn=DEMO_STUDENT_PRN, email="someone.real@college.edu")
+        assert login(api_client, "student").status_code == 404
+        keys = [p["key"] for p in api_client.get(PERSONAS).json()["personas"]]
+        assert "student" not in keys
+
     def test_an_account_of_the_wrong_role_at_a_seeded_address_is_refused(
         self, api_client, demo_on, settings, tmp_path
     ):
