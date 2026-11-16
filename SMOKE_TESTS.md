@@ -1721,3 +1721,31 @@ PASS  7. Nimbus does not see the one only Acme shortlisted
 ```
 
 `--public` ends `20/20 checks passed`. Exit status is 1 if any check fails.
+
+## API journeys against a live server (Robot Framework, `backend/e2e/`)
+
+One command runs every cross-role journey from E2E_SUITE_PLAN.md, Layer 1:
+
+```bash
+cd backend
+pip install -r e2e/requirements.txt          # robotframework + robotframework-requests, once
+../.venv/bin/python e2e/run.py               # all suites
+../.venv/bin/python e2e/run.py --suite identity,addendum
+../.venv/bin/python e2e/run.py --keep        # keep the run folder (Robot log.html, server.log, db)
+../.venv/bin/python e2e/run.py --strict      # the final gate: NOT BUILT counts as a failure
+```
+
+The runner makes `backend/e2e/.runs/<timestamp>/`, points `DATABASE_URL`, `MEDIA_ROOT`, the
+cache and the dev signing keys at it, forces an offline environment (LLM off, local vector
+store, `MONGO_URI` empty, TF-IDF matching, DEBUG on so OTPs come back, high throttle rates),
+runs `migrate` and `seed_demo`, starts Django on a free port, runs Robot over the suites, and
+stops the server. It never touches `db.sqlite3` or `media/`. The folder is deleted on a pass
+and kept on a failure or with `--keep`. `phase_0_3` runs on its own fresh database; the other
+suites share a second one. Suites: `phase_0_3`, `identity`, `addendum`, `phase_b`,
+`suggestions`, `exports`.
+
+`phase_b`, `suggestions` and `exports` each probe one route first; a 404 there reports the
+suite as `NOT BUILT` (separate from failures, exit code unaffected, a failure under
+`--strict`). Anything else, a missing seed or a suite with no tests is a FAIL. Setup done
+through `manage.py` is labelled `SETUP` in the output. Students created by the suites use PRN
+sequences 800-899 only.
