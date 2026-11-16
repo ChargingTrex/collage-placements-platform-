@@ -173,10 +173,27 @@ domain (Netlify and ngrok each append one hop); override with
    `TRUSTED_PROXY_COUNT=1`. If every visitor is throttled together, the count is
    too low (all share one hop); if forging avoids the 429, it is too high.
 
-## Before the demo
+## Before the demo: pre-read the job descriptions
 
-- Clear the cache: `rm -rf backend/.cache` (if that folder exists; the file
-  cache also keeps throttle counters, so old 429s would survive a restart).
-- Re-run `read_jd` for the demo job descriptions so they are read fresh. Note:
-  I found no `read_jd` management command or file-cache setting on this branch,
-  so use whatever the demo checklist (E/G stream) names for it.
+Reading a JD with Gemma takes about 90 s, longer than Netlify's proxy allows, so
+the demo's JDs are read in advance and served from a cache that `read_jd` and
+gunicorn share.
+
+1. In the repo-root `.env`, set an **absolute** cache location so both processes
+   use the same folder:
+   ```
+   CACHE_BACKEND=file
+   CACHE_LOCATION=/ABSOLUTE/PATH/TO/REPO/backend/.cache
+   JD_READING_BUDGET_SECONDS=0
+   ```
+   `JD_READING_BUDGET_SECONDS=0` means a JD that was not pre-read never waits for
+   Gemma on the link; search still ranks on embeddings.
+2. On the demo day, clear the cache (the file cache also holds the throttle
+   counters, so stale 429s would otherwise survive): `rm -rf backend/.cache`.
+3. From `backend/`, read each demo JD, with the same `LLM_MODEL` as the server:
+   ```
+   python manage.py read_jd path/to/jd.txt --timeout 300
+   ```
+   A reading is cached for 24 hours, so do this on the day of the demo.
+4. In the demo, paste the JD into the search box **from the same `.txt` file**, so
+   the text, and so the cache key, matches exactly.
