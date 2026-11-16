@@ -20,6 +20,6 @@ The Phase 0-3 Checkpoint Script Passes All 43 Checks
     ${lines}=    Get Lines Matching Regexp    ${result.stdout}    ^\\d+/\\d+ checks passed
     Log To Console    ${SPACE*4}phase_0_3 script says: ${lines}
     Set Test Message    script output: ${lines}
-    ${failures}=    Get Lines Matching Regexp    ${result.stdout}    ^FAIL
+    ${failures}=    Get Lines Matching Regexp    ${result.stdout}    ^FAIL.*
     Should Be Equal As Integers    ${result.rc}    0    msg=script exited ${result.rc}. Failing checks:\n${failures}
     Should Contain    ${result.stdout}    43/43 checks passed

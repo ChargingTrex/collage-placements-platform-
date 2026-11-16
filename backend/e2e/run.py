@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import os
 import shutil
 import signal
@@ -121,7 +122,9 @@ def manage(env: dict, *args: str, label: str | None = None, check: bool = True) 
 def ensure_fixtures(env: dict) -> None:
     """The sample resumes are gitignored; a clean clone generates them."""
     resumes = BACKEND / "fixtures" / "resumes"
-    if not (resumes / "aarav_mehta_backend.pdf").exists():
+    # reference.json (tracked) names every sample; a checkout can hold only some of them.
+    expected = json.loads((resumes / "reference.json").read_text(encoding="utf-8"))
+    if any(not (resumes / name).exists() for name in expected):
         manage(env, "make_sample_resumes", label="generating the sample resumes (missing)")
     if not (BACKEND / "fixtures" / "transcripts" / "transcript_clean.pdf").exists():
         manage(env, "make_sample_transcripts", label="generating the sample transcripts (missing)")
