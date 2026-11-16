@@ -229,13 +229,32 @@ suites green, both rehearsals done, and the video recorded.
 
 ### Morning-of checklist
 
+As built (updated 2026-11-16). The demo runs from the integration worktree
+`collage-placements-weekend-demo` (branch `weekend-demo`), whose untracked
+`.env`, `DEMO_LOGINS.md`, `backend/db.sqlite3`, `backend/media/` and
+`backend/.cache/` hold the demo state. Below, `PY` means the venv python:
+`"/Users/fi-it/Documents/projects/collage placements Platform/.venv/bin/python"`.
+
 - [ ] Mac plugged in, and `caffeinate -dims` running so it never sleeps.
-- [ ] `ollama serve` is up, `gemma4:e4b` and `nomic-embed-text` are loaded, and the warm-up call is done.
-      The first call after a cold start is the slowest.
-- [ ] MongoDB is up, the backend runs through `serve_demo`, and the tunnel is up.
-- [ ] The Netlify link opens on your phone, and the backup video is ready to play.
-- [ ] Browser tabs are open: the local app and the public link. Use one browser profile per
-      persona, or the one-click persona buttons.
+- [ ] Quiet machine: quit Chrome tabs, IDEs and anything else heavy, and stop stray test
+      servers. On 2026-11-16 swap filled the disk four times; keep at least 5 GB free.
+- [ ] Ollama is running (`open -a Ollama`; it quit once on 2026-11-16).
+      `curl -s localhost:11434/api/version` answers, and `ollama list` shows `gemma4:e4b`
+      and `nomic-embed-text`.
+- [ ] Warm-up: one tiny Gemma call. A cold first call takes about 2 minutes; warm calls take 45–75 s.
+- [ ] Pre-read the demo JD: from `backend/`, `rm -rf .cache`, then
+      `$PY manage.py read_jd fixtures/resumes/job_description.txt --timeout 300`.
+      Expect "Read: Backend Engineer…" and a printed expiry. In the demo, paste the JD from
+      that same file, so the search hits the cache and answers in under a second.
+- [ ] The local demo (one-click persona buttons need DEBUG, so not `serve_demo`):
+      `cd backend && $PY manage.py runserver 127.0.0.1:8000`, and `cd frontend && npm run dev`.
+      Vector search uses the local store, because MongoDB needs Docker.
+- [ ] The public link, optional, only if U1/U2 are done: `scripts/serve_demo.sh` plus the
+      tunnel, as in `docs/HOSTING.md`. It has no persona buttons and no live upload, because of
+      the proxy time limit.
+- [ ] The backup video is ready to play.
+- [ ] Browser tabs: the local app at `localhost:5173`. Switch views with the persona buttons
+      (Student, Placement officer, Acme, Nimbus); the pilot officer is in `DEMO_LOGINS.md`.
 
 ### Demo script
 

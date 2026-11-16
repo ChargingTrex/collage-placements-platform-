@@ -37,11 +37,18 @@ These block sign-off for the live configuration: Ollama + MongoDB.
   - the two backend resumes rank above the other three
   - the sample JD creates a "Backend Engineer" category
   - the MongoDB round-trip test passes
-- **Status:** pending a human.
+- **Status (2026-11-16): done except MongoDB.** The model is `gemma4:e4b`, not llama3.1:8b, run on the CPU with `LLM_REASONING_EFFORT=none`. The results are in `SMOKE_TESTS.md` ("Gemma lane G2–G4" and "stream V"):
+  - **`eval_extraction`:** the stored reading matches regex on all 10 samples.
+  - **Ranking:** real nomic embeddings rank the two backend resumes first.
+  - **Categories:** `read_jd` created "Backend Engineer" from Gemma's reading.
+
+  The MongoDB round-trip test is still open, because it needs Docker (`checklists/weekend-demo` V1/V2).
 
 ### 1.2 Confirm the `pymongo` version
 
 `requirements.txt` pins `pymongo==4.10.1`. That pin was written without network access, so it has never been installed or tested here. Install it during 1.1 and adjust the pin if needed.
+
+**Status (2026-11-16):** `pymongo==4.10.1` installs (it is in the project venv). It is still unexercised against a real MongoDB; see 1.1.
 
 ### 1.3 Re-measure four provisional numbers
 
@@ -204,9 +211,9 @@ All are minor. None blocks offline use.
 
 ## Quick list
 
-- [ ] 1.1 Live run with Ollama + MongoDB, recorded in `SMOKE_TESTS.md`
-- [ ] 1.2 Confirm the `pymongo` pin
-- [ ] 1.3 Re-measure the 4 provisional numbers
+- [ ] 1.1 Live run with Ollama + MongoDB, recorded in `SMOKE_TESTS.md`. *Ollama half done 2026-11-16; MongoDB half needs Docker.*
+- [ ] 1.2 Confirm the `pymongo` pin. *Installs; untested against MongoDB.*
+- [x] 1.3 Re-measure the 4 provisional numbers. *Done 2026-11-16 on nomic-embed-text: embedding floor 0.50 / ceiling 0.88, merge 0.75, alias 0.78, min fit 0.45. Small samples; see `SMOKE_TESTS.md` stream V.*
 - [ ] 2.1 Production Ollama host + firewall
 - [ ] 2.2 GPU or CPU
 - [ ] 2.3 Where MongoDB runs (or none)
