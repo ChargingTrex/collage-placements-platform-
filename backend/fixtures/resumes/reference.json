@@ -33,5 +33,44 @@
       "UG"
     ],
     "relevant_to_job_description": false
+  },
+  "rohan_patil_civil.pdf": {
+    "experience_years": 0.0,
+    "education_levels": [
+      "UG"
+    ],
+    "relevant_to_job_description": false,
+    "age": 21,
+    "cgpa": 7.8
+  },
+  "meera_iyer_electronics.docx": {
+    "experience_years": 1.0,
+    "education_levels": [
+      "UG"
+    ],
+    "relevant_to_job_description": false
+  },
+  "farhan_shaikh_operations.pdf": {
+    "experience_years": 3.0,
+    "education_levels": [
+      "UG"
+    ],
+    "relevant_to_job_description": false
+  },
+  "nandini_rao_biotech.docx": {
+    "experience_years": 0.5,
+    "education_levels": [
+      "Masters",
+      "UG"
+    ],
+    "relevant_to_job_description": false,
+    "cgpa": 8.6
+  },
+  "tanvi_joshi_design.pdf": {
+    "experience_years": 1.2,
+    "education_levels": [
+      "UG"
+    ],
+    "relevant_to_job_description": false
   }
 }
