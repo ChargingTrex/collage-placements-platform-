@@ -345,10 +345,13 @@ CACHE_BACKEND = os.getenv("CACHE_BACKEND", "locmem").strip().lower()
 if CACHE_BACKEND == "locmem":
     CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 elif CACHE_BACKEND == "file":
+    # A relative CACHE_LOCATION is under backend/, not the working directory:
+    # `read_jd` and gunicorn started in different folders must share one cache.
+    CACHE_LOCATION = BASE_DIR / Path(os.getenv("CACHE_LOCATION", ".cache")).expanduser()
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
-            "LOCATION": os.getenv("CACHE_LOCATION", str(BASE_DIR / ".cache")),
+            "LOCATION": str(CACHE_LOCATION),
             "OPTIONS": {"MAX_ENTRIES": 10_000},
         }
     }

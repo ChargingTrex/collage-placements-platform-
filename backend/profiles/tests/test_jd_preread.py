@@ -205,7 +205,7 @@ class TestLiveJdReadingBudget:
 
 _READ_CACHES = """
 import json, os, sys
-sys.path.insert(0, os.getcwd())
+sys.path.insert(0, os.environ["BACKEND_DIR"])
 os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
 import dotenv
 dotenv.load_dotenv = lambda *a, **k: False  # defaults, not a developer .env
@@ -214,11 +214,11 @@ print(json.dumps({k: str(v) for k, v in settings.CACHES["default"].items() if k 
 """
 
 
-def read_caches(**env):
+def read_caches(cwd=BACKEND, **env):
     clean = {k: v for k, v in os.environ.items() if k not in ("CACHE_BACKEND", "CACHE_LOCATION")}
-    clean.update(env)
+    clean.update(env, BACKEND_DIR=str(BACKEND))
     result = subprocess.run(
-        [sys.executable, "-c", _READ_CACHES], cwd=BACKEND, env=clean, capture_output=True, text=True
+        [sys.executable, "-c", _READ_CACHES], cwd=cwd, env=clean, capture_output=True, text=True
     )
     return result
 
@@ -244,6 +244,18 @@ class TestCacheBackend:
             "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
             "LOCATION": str(tmp_path / "cache"),
         }
+
+    def test_a_relative_location_is_under_the_backend_folder_from_any_directory(self, tmp_path):
+        """read_jd and gunicorn may start in different directories; a
+        relative CACHE_LOCATION must still name one cache."""
+        here = read_caches(CACHE_BACKEND="file", CACHE_LOCATION="demo-cache")
+        elsewhere = read_caches(cwd=tmp_path, CACHE_BACKEND="file", CACHE_LOCATION="demo-cache")
+        assert json.loads(here.stdout)["LOCATION"] == str(BACKEND / "demo-cache")
+        assert json.loads(elsewhere.stdout)["LOCATION"] == str(BACKEND / "demo-cache")
+
+    def test_a_home_relative_location_is_expanded(self):
+        result = read_caches(CACHE_BACKEND="file", CACHE_LOCATION="~/placement-cache")
+        assert json.loads(result.stdout)["LOCATION"] == str(Path.home() / "placement-cache")
 
     def test_an_unknown_backend_is_refused(self):
         result = read_caches(CACHE_BACKEND="redis-maybe")
