@@ -26,7 +26,7 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
 ## Saturday gate
 
 - [ ] S1: The full backend suite is green with the AI off. *Verifier, 21:18 IST: with the demo `.env` now in the worktree, three tests fail unless `JD_READING_BUDGET_SECONDS=3` is set (see V7).* **Pass when:** `python -m pytest` exits 0 from `backend/`, with the counts recorded. *Not ticked yet: the verifier has no clean full run of its own. Its one full run (on a moving tree, load 200-550, disk full) gave 1036 passed, 1 skipped, 3 errors in 76 min and is discarded. The orchestrating session reports 1088 passed, 1 skipped on `7a0178b` with `LLM_ENABLED=true` pointed at a dead port. The `_offline_ai` guard (`2a7da8d`) was checked by the verifier on the AI test files: 107 passed with the LLM on at a dead port; `VECTOR_STORE_BACKEND=mongo` 114 passed, 1 skipped. Known limit: a `MONGO_URI` in the environment or `.env` still runs `test_real_mongo_round_trip`, which fails if MongoDB is down.*
-- [ ] S2: G2-V5 results recorded in `SMOKE_TESTS.md`.
+- [x] S2: G2-V5 results recorded in `SMOKE_TESTS.md`. **Evidence:** read by the verifier on `abacc6f`: "Gemma lane G2-G4" and "Weekend demo, stream V" (V1-local, V3, V4, V5, V6). V1 and V2 (MongoDB) are owner: user and not run.
 - [ ] S3: Resume-intelligence open items 1.1-1.3 ticked, or each item's remaining part noted as owner: user.
 
 ## Sunday gate
@@ -46,7 +46,7 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
   - persona student pre-analysed with Gemma
   - JD search returns ranked students
 
-  *Progress, verifier, 2026-11-16 21:05 IST:* P merged (`0e6503a`, fixes `7a0178b`, `ac83a73`); demo DB seeded (284 accounts); the persona student and three more pre-analysed with Gemma (see P6). Pending: JD search on real embeddings, which waits for V. The DB already holds 4 `nomic-embed-text` vectors of 768 dimensions and 4 role categories.
+  *Progress, verifier, 2026-11-16 21:05 IST:* P merged (`0e6503a`, fixes `7a0178b`, `ac83a73`); demo DB seeded (284 accounts); the persona student and three more pre-analysed with Gemma (see P6). JD search on real embeddings now returns ranked students on the demo DB (V4, V6; 21:21 IST), so all four parts of M1 are in place on `abacc6f`. M1 is ticked at the freeze, after H merges and the final suite run. The DB already holds 4 `nomic-embed-text` vectors of 768 dimensions and 4 role categories.
 - [ ] M2: The morning-of checklist in `WEEKEND_DEMO_PLAN.md` can be followed as written; commands checked.
 - [ ] M3: The merge freeze is respected. No merges in the last hour before the demo.
 - [ ] M4: The Mac is quiet before the Gemma warm-up. **Pass when:** no agent sessions or test runs are active, `uptime` load is below the core count, swap is not growing, and at least 5 GB of disk is free. *Added by the verifier: at 12:00 on 2026-11-16, with the builders running, load was 554, swap 20.2 of 20.7 GB and free disk 0.5 GB; a full backend run took 76 minutes and a pytest run lost its output to a full disk. F2's timings do not hold in that state.*
