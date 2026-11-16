@@ -12,6 +12,7 @@ from django.db.models import Q
 from django_filters import rest_framework as filters
 
 from core.filters import HumanKeyFilter, HumanKeyInFilter
+from opportunities.shortlist import shortlist_condition
 from profiles.models import CareerPath, StudentProfile, slugify_skill
 
 
@@ -104,6 +105,39 @@ class StudentProfileFilter(filters.FilterSet):
             "education_level",
             "category",
         ]
+
+
+class CompanyProfileFilter(StudentProfileFilter):
+    """
+    The company list's filters plus `?shortlisted=`.
+
+    `shortlisted=true` is the company's shortlist as D27 defines it: visible
+    profiles that are a manual pick or have an application at shortlisted,
+    interview or offer. The condition is the one `opportunities.shortlist`
+    owns, so this, `is_shortlisted` and the exports cannot drift apart.
+    """
+
+    # A ChoiceFilter, not a BooleanFilter: the latter reads "maybe" as "no
+    # filter", and a typo must be a 400, not the unfiltered list.
+    shortlisted = filters.ChoiceFilter(
+        method="filter_shortlisted",
+        choices=[("true", "true"), ("false", "false"), ("1", "1"), ("0", "0")],
+    )
+
+    class Meta(StudentProfileFilter.Meta):
+        fields = StudentProfileFilter.Meta.fields + ["shortlisted"]
+
+    def filter_shortlisted(self, queryset, name, value):
+        if not value:
+            return queryset
+        value = value in ("true", "1")
+        company_id = getattr(self.request.user, "company_id", None)
+        if company_id is None:
+            # An admin or a company-less recruiter has no shortlist.
+            return queryset.none() if value else queryset
+        # The page query annotates `is_shortlisted` from the same condition.
+        condition = shortlist_condition(company_id)
+        return queryset.filter(condition) if value else queryset.exclude(condition)
 
 
 class AdminProfileFilter(StudentProfileFilter):

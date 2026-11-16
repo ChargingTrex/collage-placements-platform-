@@ -13,12 +13,14 @@ and by `get_object` on the child entries, not by what the UI chooses to render.
 
 from __future__ import annotations
 
+import base64
 import csv
 import mimetypes
 from decimal import Decimal
 
+from django.conf import settings
 from django.http import FileResponse, Http404, HttpResponse
-from django.db.models import Q
+from django.db.models import BooleanField, ExpressionWrapper, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -37,9 +39,12 @@ from matching.engine import ResumeParseError, get_engine
 from matching.serializers import JobDescriptionSerializer
 from matching.transcripts import parse_transcript
 from matching.throttling import MatchingThrottle
+from opportunities.shortlist import shortlist_condition
 from profiles import analysis as analysis_service
+from profiles import exports as export_service
+from profiles.throttling import ExportThrottle
 from profiles import match as match_service
-from profiles.filters import AdminProfileFilter, StudentProfileFilter
+from profiles.filters import AdminProfileFilter, CompanyProfileFilter
 from profiles.models import (
     CareerPath,
     CgpaReview,
@@ -645,7 +650,7 @@ class CompanyProfileViewSet(
     serializer_class = CompanyProfileSerializer
     permission_classes = [IsCompanyOrAdmin]
     prn_field = "student__prn"
-    filterset_class = StudentProfileFilter
+    filterset_class = CompanyProfileFilter
     search_fields = [
         "student__full_name",
         "student__prn",
@@ -663,9 +668,17 @@ class CompanyProfileViewSet(
     lookup_field = "student_id"
 
     def get_queryset(self):
-        return (
-            StudentProfile.objects.visible_to(self.request.user).with_related().distinct()
-        )
+        queryset = StudentProfile.objects.visible_to(self.request.user).with_related()
+        company_id = getattr(self.request.user, "company_id", None)
+        if company_id is not None:
+            # One EXISTS pair in the page query, instead of one per row in
+            # the serializer (`is_shortlisted`). D27 condition.
+            queryset = queryset.annotate(
+                is_shortlisted=ExpressionWrapper(
+                    shortlist_condition(company_id), output_field=BooleanField()
+                )
+            )
+        return queryset.distinct()
 
     @action(detail=True, methods=["get"])
     def resume(self, request, student_id=None):
@@ -717,6 +730,86 @@ class CompanyProfileViewSet(
             },
         )
         return Response({"shortlisted": True}, status=status.HTTP_201_CREATED)
+
+
+class IsCompanyWithCompany(IsCompany):
+    """A recruiter acting for a company; one with no company gets 403."""
+
+    message = "This recruiter account is not linked to a company."
+
+    def has_permission(self, request, view) -> bool:
+        return super().has_permission(request, view) and request.user.company_id is not None
+
+
+class ShortlistExportMixin:
+    """Shared gate for the two exports: company-only, throttled, no query string."""
+
+    permission_classes = [IsCompanyWithCompany]
+    throttle_classes = [ExportThrottle]
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if request.query_params:
+            raise ValidationError(
+                {param: "Unrecognised query parameter." for param in request.query_params}
+            )
+
+
+class ShortlistResumesView(ShortlistExportMixin, APIView):
+    """GET: a ZIP of the current resumes of the company's shortlist."""
+
+    def get(self, request):
+        company = request.user.company
+        archive, count, skipped = export_service.build_resume_zip(
+            export_service.shortlist_profiles(request.user).iterator()
+        )
+        AuditLog.record(
+            actor=request.user,
+            action=AuditLog.Action.DOCUMENTS_BULK_DOWNLOADED,
+            target=str(company.pk),
+            count=count,
+            skipped=skipped,
+            company=str(company.pk),
+        )
+        response = FileResponse(
+            archive,
+            as_attachment=True,
+            filename=f"shortlist-resumes-{company.company_id}.zip",
+            content_type="application/zip",
+        )
+        response["X-Skipped-Without-Resume"] = str(skipped)
+        return response
+
+
+class ShortlistContactsView(ShortlistExportMixin, APIView):
+    """POST: an AES-256 ZIP of contacts.csv, its one-time password beside it."""
+
+    def post(self, request):
+        company = request.user.company
+        profiles = list(export_service.shortlist_profiles(request.user))
+        cap = settings.OPPORTUNITIES["EXPORT_MAX_ROWS"]
+        if len(profiles) > cap:
+            raise ValidationError(
+                {"detail": f"The shortlist has {len(profiles)} students; an export holds at most {cap}."}
+            )
+        password = export_service.new_password()
+        raw = export_service.build_contacts_zip(profiles, password)
+        # The password is deliberately absent from the audit detail.
+        AuditLog.record(
+            actor=request.user,
+            action=AuditLog.Action.SHORTLIST_EXPORTED,
+            target=str(company.pk),
+            count=len(profiles),
+            company=str(company.pk),
+        )
+        return Response(
+            {
+                "password": password,
+                "filename": f"shortlist-contacts-{company.company_id}.zip",
+                "zip_base64": base64.b64encode(raw).decode("ascii"),
+                "row_count": len(profiles),
+            }
+        )
 
 
 def build_outcomes(batch: int | None) -> dict:

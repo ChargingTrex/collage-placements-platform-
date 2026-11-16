@@ -40,5 +40,16 @@ urlpatterns = [
     path("me/resume/analysis", views.MyResumeAnalysisView.as_view(), name="my-resume-analysis"),
     path("me/match", views.MyMatchView.as_view(), name="my-match"),
     path("me/confirm-parsed", views.ConfirmParsedValuesView.as_view(), name="my-confirm-parsed"),
+    # Before the router, so `shortlist` can never be read as a <student_id>.
+    path(
+        "students/shortlist/resumes",
+        views.ShortlistResumesView.as_view(),
+        name="company-shortlist-resumes",
+    ),
+    path(
+        "students/shortlist/contacts",
+        views.ShortlistContactsView.as_view(),
+        name="company-shortlist-contacts",
+    ),
     path("", include(router.urls)),
 ]
