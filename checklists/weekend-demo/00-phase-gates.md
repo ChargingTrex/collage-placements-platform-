@@ -12,12 +12,14 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
 
 ## Friday: de-risk
 
-- [x] F1: `nomic-embed-text` pulled. **Evidence:** `ollama pull nomic-embed-text` exit 0, 2026-11-16.
-- [x] F2: Gemma speed measured. **Evidence:** backend_engineer sample with `gemma4:e4b` on CPU: 185.6 s with thinking on (1027 completion tokens), 88.7 s with `reasoning_effort: "none"` (349 tokens).
-- [x] F3: JSON check. **Evidence:** `response_format: json_object` honoured, `content` is valid JSON in both modes, and reasoning arrives in a separate `reasoning` field. `think: false` does **not** disable thinking on the OpenAI-compatible API; `reasoning_effort: "none"` does.
+- [x] F1: `nomic-embed-text` pulled. **Evidence:** `ollama pull nomic-embed-text` exit 0, 2026-11-16. *Verifier, 2026-11-16:* `ollama list` shows `nomic-embed-text:latest 0a109f422b47 274 MB` and `gemma4:e4b dc35e8d9c606 6.6 GB`.
+- [ ] F2: Gemma speed measured. **Session's measurement (not the verifier's):** backend_engineer sample with `gemma4:e4b` on CPU: 185.6 s with thinking on (1027 completion tokens), 88.7 s with `reasoning_effort: "none"` (349 tokens). *Verifier, 2026-11-16: unticked.* The saved reply (`gemma_raw.json`) confirms only the thinking-on run's model and token count (`gemma4:e4b`, 613 prompt + 1027 completion, `finish_reason: stop`). It holds no timings, and nothing from the `none` run was saved. Two tiny verifier calls both timed out at 280 s behind a busy Ollama lane, so no timing is reproduced. **Re-tick when** G2 or G4 records a timed run the verifier can read (the reply with `usage`, plus wall time).
+- [x] F3: JSON check. **Evidence:** `response_format: json_object` honoured, `content` is valid JSON in both modes, and reasoning arrives in a separate `reasoning` field. `think: false` does **not** disable thinking on the OpenAI-compatible API; `reasoning_effort: "none"` does. *Verifier, 2026-11-16:* confirmed from `gemma_raw.json` for the thinking-on mode: `content` parses as JSON with the 12 expected keys, and `message.reasoning` is a separate 2460-character field. **Not verified by the verifier:** the `none`-mode JSON and the `think: false` / `reasoning_effort` claim (no saved reply; both verifier calls timed out). G0 and G3a depend on it, so it is re-checked from G's recorded `none`-mode fixture.
 - [ ] F4: MongoDB up. **owner: user (needs U3)**
 - [ ] F5: Proxy check, Netlify to tunnel to Mac. **owner: user (needs U1, U2)**
 - [ ] F6: Gate. **Pass when:** F1-F5 are green, or each red item has a recorded fallback.
+  - F4 fallback (recorded): the local vector store with real nomic embeddings, V1-local.
+  - F5 fallback (recorded): present from `localhost`; the public link is shown only if U1 and U2 land.
 
 **Found on Friday:** with thinking off, Gemma invented `date_of_birth: 2002-09-01` for a resume that states none. G3 must guard against this.
 
@@ -45,3 +47,4 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
   - JD search returns ranked students
 - [ ] M2: The morning-of checklist in `WEEKEND_DEMO_PLAN.md` can be followed as written; commands checked.
 - [ ] M3: The merge freeze is respected. No merges in the last hour before the demo.
+- [ ] M4: The Mac is quiet before the Gemma warm-up. **Pass when:** no agent sessions or test runs are active, `uptime` load is below the core count, swap is not growing, and at least 5 GB of disk is free. *Added by the verifier: at 12:00 on 2026-11-16, with the builders running, load was 554, swap 20.2 of 20.7 GB and free disk 0.5 GB; a full backend run took 76 minutes and a pytest run lost its output to a full disk. F2's timings do not hold in that state.*

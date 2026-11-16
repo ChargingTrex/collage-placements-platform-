@@ -12,3 +12,9 @@ Owner: P builder. QA: QA-1 (backend) and QA-3 (frontend).
 - [ ] P4: A pilot officer account in `seed_demo`, with its own `ADM-` id, added to `DEMO_LOGINS.md` (gitignored, never committed). **Pass when:** a test proves seeding is idempotent and that the account can sign in.
 - [ ] P5: One-click demo sign-in. `DEMO_MODE` is forced off when `DEBUG` is off. The endpoints answer 404 when it's off, and they serve only seeded personas. The login page shows the persona buttons only when they're served. **Pass when:** there are tests for the off case, the DEBUG-off-with-env-on case, each persona, and a refused non-seeded account.
 - [ ] P6: Richer synthetic data. Run `seed_demo --with-students` plus `seed_outcomes_demo`, then pre-analyse the persona student and the profiles the demo script opens, using Gemma with no time budget. **Pass when:** those profiles show `extraction_source == "llm"`, and the counts are recorded. *Runs in the Gemma lane, after G3a.*
+
+## Follow-ups from QA (not demo-blocking; added by the verifier, 2026-11-16)
+
+- [ ] P7: Persona sign-in lands on a page the persona may see. `landAfterLogin` honours `from`, so a student or recruiter persona clicked after a redirect from an admin page lands on a forbidden page; this is the demo's own persona-switching path. **Pass when:** demo sign-in ignores `from` (or checks the role), and frontend tests cover the student, officer and recruiter personas.
+- [ ] P8: The users page never shows rows from a superseded request (`UsersPage.tsx:80-97`), and a failed reload clears the stale rows and count. **Pass when:** tests fail without each guard.
+- [ ] P9: The "resets to page one" test (`admin-users.test.tsx:173-200`) leaves page one before filtering, so it fails if the reset is removed.

@@ -18,3 +18,4 @@ Owner: H builder. QA: QA-1.
   - `/django-admin/` is disabled or has a strong password
   - demo sign-in returns 404
   - no sign-in code appears in any response
+- [ ] H6: The two proxy limits from the plan's Friday proxy check are handled in writing (added by the verifier; the plan lists both and no item covered them). **Pass when:** the hosting notes say (a) how ngrok's free-tier browser-warning page is avoided for forwarded `/api/*` calls (the `ngrok-skip-browser-warning` header cannot be set by a Netlify redirect, so name the workaround or use a Cloudflare tunnel), and (b) that Netlify cuts forwarded requests at about half a minute, so resume analysis and the live upload are demonstrated on `localhost`, never through the public link.
