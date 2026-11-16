@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from accounts import views
+from accounts import directory, views
 from accounts.jwks import jwks_view
 
 urlpatterns = [
@@ -14,4 +14,11 @@ urlpatterns = [
     path("refresh", views.RefreshView.as_view(), name="auth-refresh"),
     path("me", views.me, name="auth-me"),
     path("jwks", jwks_view, name="auth-jwks"),
+    # The placement cell's directory of every account (read-only, audited).
+    path("admin/users", directory.UserDirectoryView.as_view(), name="auth-admin-users"),
+    path(
+        "admin/users/summary",
+        directory.UserDirectorySummaryView.as_view(),
+        name="auth-admin-users-summary",
+    ),
 ]
