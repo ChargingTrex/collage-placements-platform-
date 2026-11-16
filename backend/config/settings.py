@@ -406,7 +406,22 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 ADMIN_ENABLED = env_bool("DJANGO_ADMIN_ENABLED", DEBUG)
 if env_bool("DJANGO_BEHIND_PROXY", False):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+#   TRUSTED_PROXY_COUNT   how many reverse proxies append to X-Forwarded-For in
+#                         front of gunicorn (ngrok = 1, Netlify + ngrok = 2).
+#                         0 (default) ignores the header, so a client cannot
+#                         pick its own IP and dodge the throttles. DRF reads it
+#                         as NUM_PROXIES, accounts.views._client_ip likewise.
+#   SERVE_DEMO_LOCAL_TEST the ONLY way to expose sign-in codes with DEBUG off
+#                         (the local e2e run). scripts/serve_demo.sh exports it
+#                         as 0 for any real run; it refuses it with a tunnel.
+TRUSTED_PROXY_COUNT = int(os.getenv("TRUSTED_PROXY_COUNT", 0))
+REST_FRAMEWORK = {**REST_FRAMEWORK, "NUM_PROXIES": TRUSTED_PROXY_COUNT}
 if not DEBUG:
+    # Defence in depth: a .env or stray variable cannot turn sign-in codes back
+    # on for a DEBUG-off server (serve_demo also exports it false). Only the
+    # explicit local-test flag, which serve_demo refuses behind a tunnel, can.
+    if not env_bool("SERVE_DEMO_LOCAL_TEST", False):
+        PLACEMENT["EXPOSE_OTP_IN_RESPONSE"] = False
     # JSON only: the browsable API is an HTML page that needs static files
     # (which gunicorn does not serve) and invites poking.
     REST_FRAMEWORK = {

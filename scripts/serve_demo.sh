@@ -10,7 +10,9 @@
 # Flags (each also an env var): --tunnel-host / TUNNEL_HOST, --netlify-domain /
 # NETLIFY_DOMAIN, --port / PORT (8000), --timeout / GUNICORN_TIMEOUT (240 s: one
 # live Gemma call is ~90 s and there may be a retry), PYTHON (the venv python).
-# Set DEMO_ALLOW_INSECURE_KEY=1 to run with the dev SECRET_KEY (local checks only).
+# DEMO_ALLOW_INSECURE_KEY=1 (dev SECRET_KEY) and SERVE_DEMO_LOCAL_TEST=1 (returns sign-in
+# codes, for the local e2e run) are local-only: both refused when a tunnel/Netlify host is set.
+# TRUSTED_PROXY_COUNT sets how many X-Forwarded-For hops to trust (default 1 per tunnel/Netlify).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -48,16 +50,44 @@ add "$TUNNEL_HOST"
 add "$NETLIFY_DOMAIN"
 [ -n "$TUNNEL_HOST" ] || echo "warning: no --tunnel-host / TUNNEL_HOST; only localhost will be accepted" >&2
 
+public=0
+{ [ -n "$TUNNEL_HOST" ] || [ -n "$NETLIFY_DOMAIN" ]; } && public=1
+
+# Local-only switches. Both are refused as soon as a tunnel or Netlify host is set.
+if [ "$public" = 1 ]; then
+  if [ "${DEMO_ALLOW_INSECURE_KEY:-}" = "1" ]; then
+    echo "refusing to start: DEMO_ALLOW_INSECURE_KEY=1 with a tunnel/Netlify host. Set a real DJANGO_SECRET_KEY." >&2
+    exit 1
+  fi
+  if [ "${SERVE_DEMO_LOCAL_TEST:-}" = "1" ]; then
+    echo "refusing to start: SERVE_DEMO_LOCAL_TEST=1 returns sign-in codes in responses; never with a tunnel/Netlify host." >&2
+    exit 1
+  fi
+fi
+
+# Exported, so a .env at the repo root (load_dotenv never overrides exports)
+# cannot turn any of these back on.
 export DJANGO_DEBUG=false
+export DJANGO_ADMIN_ENABLED=false
+export DEMO_MODE=false
+if [ "${SERVE_DEMO_LOCAL_TEST:-}" = "1" ]; then
+  echo "NOTE: SERVE_DEMO_LOCAL_TEST=1: sign-in codes are returned in responses (local e2e run only)." >&2
+  export EXPOSE_OTP_IN_RESPONSE=true
+else
+  export SERVE_DEMO_LOCAL_TEST=0
+  export EXPOSE_OTP_IN_RESPONSE=false
+fi
 export DJANGO_ALLOWED_HOSTS="$hosts"
 export CSRF_TRUSTED_ORIGINS="$origins"
 export CORS_ALLOWED_ORIGINS="${origins:-http://localhost:5173}"
 export DJANGO_BEHIND_PROXY=true
-
-case "${EXPOSE_OTP_IN_RESPONSE:-0}" in
-  0|false|False|no|"") ;;
-  *) echo "WARNING: EXPOSE_OTP_IN_RESPONSE is on: sign-in codes are returned in responses. Never on the public link." >&2 ;;
-esac
+# X-Forwarded-For hops our proxies add: ngrok, plus Netlify when it fronts the API.
+if [ -z "${TRUSTED_PROXY_COUNT:-}" ]; then
+  TRUSTED_PROXY_COUNT=0
+  [ -n "$TUNNEL_HOST" ] && TRUSTED_PROXY_COUNT=1
+  [ -n "$TUNNEL_HOST" ] && [ -n "$NETLIFY_DOMAIN" ] && TRUSTED_PROXY_COUNT=2
+fi
+export TRUSTED_PROXY_COUNT
 
 cd "$ROOT/backend"
 
