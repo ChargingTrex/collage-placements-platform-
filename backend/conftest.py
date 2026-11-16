@@ -19,6 +19,20 @@ def _isolated_media(tmp_path, settings):
 
 
 @pytest.fixture(autouse=True)
+def _offline_resume_intelligence(settings):
+    """A developer's .env may switch on Ollama and MongoDB for live use; tests
+    never reach either. A test that needs a model passes a FakeLLMClient, and
+    the real-MongoDB test reads MONGO_URI from the environment itself."""
+    from matching.vectorstore import reset_vector_store
+
+    settings.LLM = {**settings.LLM, "ENABLED": False}
+    settings.VECTOR_STORE = {**settings.VECTOR_STORE, "BACKEND": "local", "MONGO_URI": ""}
+    reset_vector_store()
+    yield
+    reset_vector_store()
+
+
+@pytest.fixture(autouse=True)
 def _reset_throttles():
     """DRF throttle history is process-global; leaking it across tests makes
     unrelated tests fail with 429 depending on run order."""

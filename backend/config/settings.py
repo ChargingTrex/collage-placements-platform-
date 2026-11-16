@@ -257,10 +257,18 @@ RESUME_ANALYSIS = {
 # spaCy's averaged word vectors put even unrelated English near 0.8, so its
 # floor sits at the least relevant sample; TF-IDF shares almost no terms
 # with an unrelated resume, so its floor is 0. Each ceiling sits just above
-# the best sample. The embedding constants are PROVISIONAL, typical
-# nomic-embed-text cosines (unrelated ~0.4, a close match ~0.85), until the
-# live run (plan §5.4) measures the samples. Retune all of them when the
-# model changes.
+# the best sample. The embedding constants were measured in the live run
+# (plan §5.4, 2026-11-16) with nomic-embed-text through Ollama, the ten
+# samples against SAMPLE_JOB_DESCRIPTION:
+#
+#     backend_engineer *  0.836    designer_short_dates  0.531
+#     data_engineer *     0.733    civil_fresher         0.537
+#     frontend_intern     0.630    electronics_dated     0.544
+#     mechanical_designer 0.565    biotech_masters       0.551
+#     operations_multi    0.530    marketing_executive   0.509
+#
+# so the floor sits at the least relevant sample and the ceiling just above
+# the best. Retune all of them when the model changes.
 MATCH_SCORE = {
     # "certifications" is a slot for Phase C (certifications held). It stays 0
     # until that phase exists: the engine scores only the parts it computes,
@@ -270,7 +278,7 @@ MATCH_SCORE = {
         "certifications": 0.0,
     },
     "CALIBRATION": {
-        "embedding": {"FLOOR": 0.40, "CEILING": 0.85},
+        "embedding": {"FLOOR": 0.50, "CEILING": 0.85},
         "spacy": {"FLOOR": 0.80, "CEILING": 0.97},
         "tfidf": {"FLOOR": 0.00, "CEILING": 0.25},
     },
