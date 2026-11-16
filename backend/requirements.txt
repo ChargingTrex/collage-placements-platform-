@@ -5,6 +5,7 @@ djangorestframework-simplejwt==5.4.0
 cryptography==44.0.0            # RS256 signing keys and the JWKS endpoint
 django-cors-headers==4.6.0
 django-filter==24.3
+gunicorn==27.0.1                 # serves the public demo link (scripts/serve_demo.sh)
 
 # --- Config / infra ---
 python-dotenv==1.0.1

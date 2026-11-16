@@ -372,3 +372,26 @@ LOGGING = {
 VERIFICATION = {
     "CGPA_TOLERANCE": float(os.getenv("VERIFICATION_CGPA_TOLERANCE", 0.1)),
 }
+
+# === HOSTING: public demo link (Netlify -> tunnel -> gunicorn) =================
+# Everything the hosted demo needs, in one place. scripts/serve_demo.sh sets the
+# env vars; with none of them set, local development is unchanged.
+#
+#   CSRF_TRUSTED_ORIGINS  comma list of full origins, e.g. https://x.ngrok-free.app
+#   DJANGO_ADMIN_ENABLED  serve /django-admin/. Follows DEBUG, so it is off on
+#                         the public link: the admin is a login form on the
+#                         open internet, and nothing in the demo needs it.
+#   DJANGO_BEHIND_PROXY   trust X-Forwarded-Proto from the tunnel so Django
+#                         sees requests as https (CSRF origin checks)
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+ADMIN_ENABLED = env_bool("DJANGO_ADMIN_ENABLED", DEBUG)
+if env_bool("DJANGO_BEHIND_PROXY", False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+if not DEBUG:
+    # JSON only: the browsable API is an HTML page that needs static files
+    # (which gunicorn does not serve) and invites poking.
+    REST_FRAMEWORK = {
+        **REST_FRAMEWORK,
+        "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
+    }
+# === end HOSTING ================================================================
