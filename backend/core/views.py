@@ -26,16 +26,26 @@ def health(request):
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
-        checks["database"] = {"ok": True, "engine": connection.vendor}
+        checks["database"] = {"ok": True}
+        if settings.DEBUG:
+            checks["database"]["engine"] = connection.vendor
     except Exception as exc:  # pragma: no cover - only hit when the DB is down
-        checks["database"] = {"ok": False, "error": str(exc)}
+        # The message can carry a path or host; show it only with DEBUG on.
+        checks["database"] = {"ok": False}
+        if settings.DEBUG:
+            checks["database"]["error"] = str(exc)
 
     checks["storage"] = {"ok": True, **storage_info()}
 
     # Reported, never failed on: the engine has a working fallback backend.
+    # Kept on the public link: the backend name (spacy/tfidf) proves the demo's
+    # matching mode and is harmless. Model detail and thresholds are DEBUG-only.
     from matching.backends import backend_info
 
-    checks["matching_engine"] = backend_info()
+    engine = backend_info()
+    if not settings.DEBUG:
+        engine = {k: engine[k] for k in ("ok", "backend")}
+    checks["matching_engine"] = engine
 
     healthy = all(check.get("ok", False) for check in checks.values())
     return Response(

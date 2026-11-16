@@ -88,11 +88,16 @@ def validate_marksheet(file_obj) -> None:
 
 
 def storage_info() -> dict[str, str]:
-    """Which backend is live -- surfaced by /api/health for smoke tests."""
+    """
+    Which backend is live -- surfaced by /api/health for smoke tests.
+
+    `location` (a server filesystem path or bucket name) is anonymous
+    information a stranger has no use for, so it appears only with DEBUG on.
+    """
     backend = settings.STORAGE_BACKEND
-    location = (
-        settings.AWS_STORAGE_BUCKET_NAME
-        if backend == "s3"
-        else str(settings.MEDIA_ROOT)
-    )
-    return {"backend": backend, "location": location}
+    info = {"backend": backend}
+    if settings.DEBUG:
+        info["location"] = (
+            settings.AWS_STORAGE_BUCKET_NAME if backend == "s3" else str(settings.MEDIA_ROOT)
+        )
+    return info
