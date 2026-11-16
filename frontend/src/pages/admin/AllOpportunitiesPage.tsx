@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { Collected } from '@/api/paginate'
 import { ApiError } from '@/api/client'
 import {
   OPPORTUNITY_STATUS_LABEL,
@@ -11,11 +12,13 @@ import {
 } from '@/api/opportunities'
 import OpportunityForm from '@/components/OpportunityForm'
 import { OpportunityStatusBadge } from '@/components/StatusBadges'
+import TruncationNote from '@/components/TruncationNote'
 import { Alert, Button, Card, EmptyState, Field, PageHeader, Select } from '@/components/ui'
 
 export default function AllOpportunitiesPage() {
   const [rows, setRows] = useState<Opportunity[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cut, setCut] = useState<Collected<unknown> | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [status, setStatus] = useState<OpportunityStatus | ''>('')
   const [roleType, setRoleType] = useState<RoleType | ''>('')
@@ -25,14 +28,14 @@ export default function AllOpportunitiesPage() {
 
   const load = useCallback(async () => {
     try {
-      setRows(
-        await opportunitiesApi.list({
+      const got = await opportunitiesApi.list({
           status,
           role_type: roleType,
           company_id: companyId.trim(),
           search: search.trim(),
-        }),
-      )
+        })
+      setRows(got.rows)
+      setCut(got)
       setError(null)
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not load the postings.')
@@ -96,6 +99,7 @@ export default function AllOpportunitiesPage() {
         <Field label="Company ID" value={companyId} onChange={(e) => setCompanyId(e.target.value)} />
         <Field label="Search" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
+      <TruncationNote collected={cut} />
       {error ? <div className="mb-4"><Alert tone="error">{error}</Alert></div> : null}
       {notice ? <div className="mb-4"><Alert tone="success">{notice}</Alert></div> : null}
 

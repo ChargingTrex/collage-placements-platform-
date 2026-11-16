@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import type { Collected } from '@/api/paginate'
 import { ApiError } from '@/api/client'
 import { formatSalary, opportunitiesApi, type Opportunity } from '@/api/opportunities'
+import TruncationNote from '@/components/TruncationNote'
 import { Alert, Button, Card, EmptyState, PageHeader } from '@/components/ui'
 
 function ReviewCard({ row, onDone }: { row: Opportunity; onDone: (message: string) => void }) {
@@ -96,11 +98,14 @@ function ReviewCard({ row, onDone }: { row: Opportunity; onDone: (message: strin
 export default function OpportunityReviewPage() {
   const [rows, setRows] = useState<Opportunity[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cut, setCut] = useState<Collected<unknown> | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      setRows(await opportunitiesApi.list({ status: 'pending_review' }))
+      const got = await opportunitiesApi.list({ status: 'pending_review' })
+      setRows(got.rows)
+      setCut(got)
       setError(null)
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not load the queue.')
@@ -117,6 +122,7 @@ export default function OpportunityReviewPage() {
         title="Review queue"
         subtitle="Recruiter postings wait here until you approve them."
       />
+      <TruncationNote collected={cut} />
       {error ? (
         <div className="mb-4">
           <Alert tone="error">{error}</Alert>

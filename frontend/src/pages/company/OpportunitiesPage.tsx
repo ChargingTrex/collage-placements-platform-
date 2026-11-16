@@ -1,22 +1,27 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { Collected } from '@/api/paginate'
 import { ApiError } from '@/api/client'
 import { formatSalary, opportunitiesApi, type Opportunity } from '@/api/opportunities'
 import OpportunityForm from '@/components/OpportunityForm'
 import { OpportunityStatusBadge } from '@/components/StatusBadges'
+import TruncationNote from '@/components/TruncationNote'
 import { Alert, Button, Card, EmptyState, PageHeader } from '@/components/ui'
 
 export default function OpportunitiesPage() {
   const [rows, setRows] = useState<Opportunity[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cut, setCut] = useState<Collected<unknown> | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [editing, setEditing] = useState<Opportunity | 'new' | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      setRows(await opportunitiesApi.list())
+      const got = await opportunitiesApi.list()
+      setRows(got.rows)
+      setCut(got)
       setError(null)
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not load your postings.')
@@ -70,6 +75,7 @@ export default function OpportunitiesPage() {
       <div className="mb-4 flex justify-end">
         <Button onClick={() => setEditing('new')}>New posting</Button>
       </div>
+      <TruncationNote collected={cut} />
       {error ? <div className="mb-4"><Alert tone="error">{error}</Alert></div> : null}
       {notice ? <div className="mb-4"><Alert tone="success">{notice}</Alert></div> : null}
 

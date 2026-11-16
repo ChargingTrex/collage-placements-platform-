@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { areaOf } from '@/api/auth'
+import type { Collected } from '@/api/paginate'
 import { ApiError } from '@/api/client'
 import { downloadFile } from '@/api/documents'
 import { describeMatchingError } from '@/api/matching'
@@ -20,6 +21,7 @@ import { useAuth } from '@/auth/AuthContext'
 import DocumentButton from '@/components/DocumentButton'
 import { ScoreBar } from '@/components/MatchDisplay'
 import { ApplicationStatusBadge } from '@/components/StatusBadges'
+import TruncationNote from '@/components/TruncationNote'
 import { Alert, Badge, Button, Card, CardTitle, EmptyState, Field, PageHeader } from '@/components/ui'
 
 /** Only the moves the server allows; a finished application has none. */
@@ -238,12 +240,15 @@ export default function ApplicantsPage() {
   const backTo = user && areaOf(user) === 'admin' ? '/admin/opportunities' : '/company/opportunities'
   const [rows, setRows] = useState<CompanyApplication[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cut, setCut] = useState<Collected<unknown> | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
   const load = useCallback(async () => {
     try {
-      setRows(await opportunitiesApi.applications({ opportunity: opportunityId }))
+      const got = await opportunitiesApi.applications({ opportunity: opportunityId })
+      setRows(got.rows)
+      setCut(got)
       setError(null)
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not load the applicants.')
@@ -283,6 +288,7 @@ export default function ApplicantsPage() {
         </Button>
       </div>
       {exportError ? <div className="mb-4"><Alert tone="error">{exportError}</Alert></div> : null}
+      <TruncationNote collected={cut} />
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       {rows === null && !error ? (

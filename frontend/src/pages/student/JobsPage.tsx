@@ -1,21 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { Collected } from '@/api/paginate'
 import { ApiError } from '@/api/client'
 import { opportunitiesApi, type FeedRow } from '@/api/opportunities'
 import JobCard from '@/components/JobCard'
+import TruncationNote from '@/components/TruncationNote'
 import { Alert, EmptyState, Field, PageHeader } from '@/components/ui'
 
 export default function JobsPage() {
   const [rows, setRows] = useState<FeedRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cut, setCut] = useState<Collected<unknown> | null>(null)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
     let cancelled = false
     opportunitiesApi
       .feed()
-      .then((next) => !cancelled && setRows(next))
+      .then((next) => {
+        if (cancelled) return
+        setRows(next.rows)
+        setCut(next)
+      })
       .catch((caught) => {
         if (!cancelled)
           setError(caught instanceof ApiError ? caught.message : 'Could not load the jobs.')
@@ -56,6 +63,7 @@ export default function JobsPage() {
           placeholder="Title, company or skill"
         />
       </div>
+      <TruncationNote collected={cut} />
       {error ? <Alert tone="error">{error}</Alert> : null}
       {shown === null && !error ? (
         <p className="py-8 text-center text-sm text-ink-400">Loading…</p>

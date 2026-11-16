@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { Collected } from '@/api/paginate'
 import { ApiError } from '@/api/client'
 import {
   NOTIFICATIONS_CHANGED,
@@ -8,15 +9,19 @@ import {
   notificationText,
   type AppNotification,
 } from '@/api/notifications'
+import TruncationNote from '@/components/TruncationNote'
 import { Alert, Badge, Button, Card, EmptyState, PageHeader } from '@/components/ui'
 
 export default function NotificationsPage() {
   const [rows, setRows] = useState<AppNotification[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cut, setCut] = useState<Collected<unknown> | null>(null)
 
   const load = useCallback(async () => {
     try {
-      setRows(await notificationsApi.list())
+      const got = await notificationsApi.list()
+      setRows(got.rows)
+      setCut(got)
       setError(null)
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not load notifications.')
@@ -42,6 +47,7 @@ export default function NotificationsPage() {
   return (
     <>
       <PageHeader title="Notifications" subtitle={unread ? `${unread} unread` : 'You are up to date.'} />
+      <TruncationNote collected={cut} />
       {error ? <div className="mb-4"><Alert tone="error">{error}</Alert></div> : null}
       <div className="mb-4 flex justify-end">
         <Button

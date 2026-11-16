@@ -1,5 +1,6 @@
 import { api, request } from '@/api/client'
 import type { JobSummary, MatchScore } from '@/api/matching'
+import { fetchAll } from '@/api/paginate'
 import type { Paginated } from '@/api/roster'
 
 export type Visibility = 'all' | 'shortlisted' | 'hidden'
@@ -490,8 +491,7 @@ export const profilesApi = {
 
   searchStudents: (params: StudentSearchParams = {}) =>
     api.get<Paginated<CompanyProfile>>(`/api/profiles/students${query(params)}`),
-  shortlistedStudents: () =>
-    api.get<Paginated<CompanyProfile>>('/api/profiles/students?shortlisted=true'),
+  shortlistedStudents: () => fetchAll<CompanyProfile>('/api/profiles/students?shortlisted=true'),
   /** The AES-256 contacts zip. The password is in the body and is shown once. */
   exportShortlistContacts: () =>
     api.post<ShortlistContactsExport>('/api/profiles/students/shortlist/contacts'),

@@ -31,7 +31,12 @@ export default function JobCard({
     } catch (caught) {
       if (caught instanceof ApiError) {
         // Apply can be refused for several reasons (D28); each gets its own sentence.
-        setRefusal(describeApplyRefusal(caught.reason, caught.message))
+        // A posting that is no longer visible to students answers 404.
+        setRefusal(
+          caught.status === 404
+            ? 'This posting is no longer available.'
+            : describeApplyRefusal(caught.reason, caught.message),
+        )
       } else setRefusal('Could not apply. Try again.')
     } finally {
       setBusy(false)

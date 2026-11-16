@@ -52,8 +52,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
     let cancelled = false
     const refresh = () =>
       notificationsApi
-        .list(true)
-        .then((rows) => !cancelled && setUnread(rows.length))
+        .unreadCount()
+        .then((count) => !cancelled && setUnread(count))
         .catch(() => !cancelled && setUnread(0))
     void refresh()
     window.addEventListener(NOTIFICATIONS_CHANGED, refresh)

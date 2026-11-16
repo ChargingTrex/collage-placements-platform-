@@ -1,6 +1,6 @@
 import { api } from '@/api/client'
 import type { MatchComponent, MatchComponentName } from '@/api/matching'
-import type { Paginated } from '@/api/roster'
+import { fetchAll } from '@/api/paginate'
 
 export type OpportunityStatus = 'draft' | 'pending_review' | 'open' | 'closed' | 'rejected'
 export type RoleType = 'internship' | 'full_time'
@@ -193,11 +193,6 @@ function query(params: QueryParams): string {
   return asString ? `?${asString}` : ''
 }
 
-/** The contract does not say whether lists are paginated; accept both. */
-export function rowsOf<T>(body: Paginated<T> | T[]): T[] {
-  return Array.isArray(body) ? body : body.results
-}
-
 export interface SuggestionsResponse {
   results: FeedRow[]
   open_count: number
@@ -208,10 +203,8 @@ export interface SuggestionsResponse {
 const BASE = '/api/opportunities'
 
 export const opportunitiesApi = {
-  list: async (filters: OpportunityFilters = {}) =>
-    rowsOf(
-      await api.get<Paginated<Opportunity> | Opportunity[]>(`${BASE}/${query({ ...filters })}`),
-    ),
+  list: (filters: OpportunityFilters = {}) =>
+    fetchAll<Opportunity>(`${BASE}/${query({ ...filters })}`),
   create: (input: OpportunityInput) => api.post<Opportunity>(`${BASE}/`, input),
   update: (id: string, input: Partial<OpportunityInput>) =>
     api.patch<Opportunity>(`${BASE}/${id}`, input),
@@ -221,23 +214,16 @@ export const opportunitiesApi = {
   reject: (id: string, reason: string) => api.post<Opportunity>(`${BASE}/${id}/reject`, { reason }),
   close: (id: string) => api.post<Opportunity>(`${BASE}/${id}/close`),
   suggestions: () => api.get<SuggestionsResponse>(`${BASE}/suggestions`),
-  feed: async () => rowsOf(await api.get<Paginated<FeedRow> | FeedRow[]>(`${BASE}/feed`)),
+  feed: () => fetchAll<FeedRow>(`${BASE}/feed`),
   apply: (id: string) => api.post<StudentApplication>(`${BASE}/${id}/apply`),
   screen: (id: string, input: ScreenInput) =>
     api.post<ScreenResult>(`${BASE}/${id}/screen`, input),
   applicantsExportUrl: (id: string) => `${BASE}/${id}/applicants/export`,
   stats: () => api.get<OpportunityStats>(`${BASE}/stats`),
 
-  applications: async (params: { opportunity?: string; status?: ApplicationStatus | '' } = {}) =>
-    rowsOf(
-      await api.get<Paginated<CompanyApplication> | CompanyApplication[]>(
-        `${BASE}/applications${query(params)}`,
-      ),
-    ),
-  myApplications: async () =>
-    rowsOf(
-      await api.get<Paginated<StudentApplication> | StudentApplication[]>(`${BASE}/applications`),
-    ),
+  applications: (params: { opportunity?: string; status?: ApplicationStatus | '' } = {}) =>
+    fetchAll<CompanyApplication>(`${BASE}/applications${query(params)}`),
+  myApplications: () => fetchAll<StudentApplication>(`${BASE}/applications`),
   withdraw: (id: string) => api.post<StudentApplication>(`${BASE}/applications/${id}/withdraw`),
   setStatus: (id: string, status: ApplicationStatus, note?: string) =>
     api.post<CompanyApplication>(`${BASE}/applications/${id}/status`, {

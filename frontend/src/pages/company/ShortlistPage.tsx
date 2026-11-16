@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import type { Collected } from '@/api/paginate'
 import { ApiError } from '@/api/client'
 import { downloadFile, saveBlob } from '@/api/documents'
 import {
@@ -9,6 +10,7 @@ import {
   type CompanyProfile,
   type ShortlistContactsExport,
 } from '@/api/profiles'
+import TruncationNote from '@/components/TruncationNote'
 import { Alert, Badge, Button, Card, CardTitle, EmptyState, PageHeader } from '@/components/ui'
 
 function bytesFromBase64(encoded: string): Uint8Array<ArrayBuffer> {
@@ -89,6 +91,7 @@ function PasswordPanel({ result, onDone }: { result: ContactsResult; onDone: () 
 export default function ShortlistPage() {
   const [rows, setRows] = useState<CompanyProfile[] | null>(null)
   const [count, setCount] = useState(0)
+  const [cut, setCut] = useState<Collected<unknown> | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const [zipBusy, setZipBusy] = useState(false)
@@ -102,9 +105,11 @@ export default function ShortlistPage() {
 
   const load = useCallback(async () => {
     try {
-      const page = await profilesApi.shortlistedStudents()
-      setRows(page.results)
-      setCount(page.count)
+      const got = await profilesApi.shortlistedStudents()
+      setRows(got.rows)
+      // The server's own count, not how many rows were fetched.
+      setCount(got.count)
+      setCut(got)
       setError(null)
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not load your shortlist.')
@@ -175,6 +180,7 @@ export default function ShortlistPage() {
         title="Shortlist"
         subtitle="Students you picked, and applicants you moved to shortlisted, interview or offer."
       />
+      <TruncationNote collected={cut} />
       {error ? (
         <div className="mb-4">
           <Alert tone="error">{error}</Alert>

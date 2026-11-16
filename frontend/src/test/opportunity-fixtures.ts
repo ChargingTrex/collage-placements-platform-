@@ -1,3 +1,4 @@
+import type { AppNotification } from '@/api/notifications'
 import type {
   CompanyApplication,
   FeedRow,
@@ -114,6 +115,17 @@ export function makeStudentApplication(
     events: [
       { from_status: '', to_status: 'applied', note: '', created_at: '2026-11-01T10:00:00Z' },
     ],
+    ...overrides,
+  }
+}
+
+export function makeNotification(overrides: Partial<AppNotification> = {}): AppNotification {
+  return {
+    id: 'n-1',
+    kind: 'new_opportunity',
+    opportunity: { id: OPP_ID, title: 'Backend Engineer' },
+    created_at: '2026-11-01T10:00:00Z',
+    read_at: null,
     ...overrides,
   }
 }

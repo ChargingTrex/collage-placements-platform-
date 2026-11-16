@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import type { Collected } from '@/api/paginate'
 import { ApiError } from '@/api/client'
 import {
   APPLICATION_STATUS_LABEL,
@@ -8,6 +9,7 @@ import {
   type StudentApplication,
 } from '@/api/opportunities'
 import { ApplicationStatusBadge } from '@/components/StatusBadges'
+import TruncationNote from '@/components/TruncationNote'
 import { Alert, Button, Card, EmptyState, PageHeader } from '@/components/ui'
 
 function when(iso: string): string {
@@ -83,12 +85,17 @@ function ApplicationCard({
 export default function ApplicationsPage() {
   const [rows, setRows] = useState<StudentApplication[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cut, setCut] = useState<Collected<unknown> | null>(null)
 
   useEffect(() => {
     let cancelled = false
     opportunitiesApi
       .myApplications()
-      .then((next) => !cancelled && setRows(next))
+      .then((next) => {
+        if (cancelled) return
+        setRows(next.rows)
+        setCut(next)
+      })
       .catch((caught) => {
         if (!cancelled)
           setError(
@@ -103,6 +110,7 @@ export default function ApplicationsPage() {
   return (
     <>
       <PageHeader title="My applications" subtitle="Where each application stands." />
+      <TruncationNote collected={cut} />
       {error ? <Alert tone="error">{error}</Alert> : null}
       {rows === null && !error ? (
         <p className="py-8 text-center text-sm text-ink-400">Loading…</p>
