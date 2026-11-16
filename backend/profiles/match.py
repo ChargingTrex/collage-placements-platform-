@@ -76,8 +76,14 @@ def _record_once(jd_text: str, facts: llm.JobFacts, vector, model, *, reading_tt
     "Already fed" is its own marker, not the facts cache: a student's
     `me/match` caches the facts too, and must not stop the recruiter's
     reading from counting. `cache.add` claims the marker before the write,
-    so two concurrent requests for one JD count it once; a failed write
-    gives it back, so the next request tries again.
+    and a failed write gives it back, so the next request tries again.
+
+    With locmem, `add` is atomic within the process, so two concurrent
+    requests in one worker count a JD once. With `CACHE_BACKEND=file` it is
+    not: `FileBasedCache.add` is `has_key` then `set`, so two workers that
+    read the same new JD at the same instant can both count it (jd_count
+    one too high; an admin can see it). Pre-reading with `read_jd` sets the
+    marker before any search, which avoids the race for demo JDs.
     """
     key = jd_recorded_key(jd_text)
     # Never shorter than the reading: a marker gone while the reading is
