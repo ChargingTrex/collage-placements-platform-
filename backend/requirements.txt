@@ -29,3 +29,5 @@ reportlab==4.2.5                 # builds the sample PDF resumes
 pytest==8.3.4
 pytest-django==4.9.0
 pytest-cov==6.0.0
+pyzipper==0.3.6
+pycryptodomex==3.24.2  # pyzipper's AES backend

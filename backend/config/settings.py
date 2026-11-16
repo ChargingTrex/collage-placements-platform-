@@ -262,7 +262,13 @@ RESUME_ANALYSIS = {
 # live run (plan §5.4) measures the samples. Retune all of them when the
 # model changes.
 MATCH_SCORE = {
-    "WEIGHTS": {"semantic": 0.45, "skills": 0.35, "experience": 0.10, "education": 0.10},
+    # "certifications" is a slot for Phase C (certifications held). It stays 0
+    # until that phase exists: the engine scores only the parts it computes,
+    # so a zero weight changes nothing (DECISIONS D28).
+    "WEIGHTS": {
+        "semantic": 0.45, "skills": 0.35, "experience": 0.10, "education": 0.10,
+        "certifications": 0.0,
+    },
     "CALIBRATION": {
         "embedding": {"FLOOR": 0.40, "CEILING": 0.85},
         "spacy": {"FLOOR": 0.80, "CEILING": 0.97},
@@ -271,6 +277,21 @@ MATCH_SCORE = {
     # With no embedder, /api/matching/search scores visible profiles one by
     # one on the similarity backend; this caps how many.
     "FALLBACK_MAX_PROFILES": int(os.getenv("MATCH_FALLBACK_MAX_PROFILES", 500)),
+}
+
+# Phase B / Addendum 2. SUGGESTIONS.MIN_SCORE is on the calibrated 0-100
+# match score, so one figure means the same on spaCy, TF-IDF and embeddings
+# (a raw similarity cut would not). OPPORTUNITIES.DEADLINE_NOTICE_DAYS is how
+# far ahead `notify_deadlines` warns eligible students who have not applied.
+SUGGESTIONS = {
+    "MIN_SCORE": int(os.getenv("SUGGESTIONS_MIN_SCORE", 50)),
+    "MAX_RESULTS": int(os.getenv("SUGGESTIONS_MAX_RESULTS", 20)),
+}
+OPPORTUNITIES = {
+    "DEADLINE_NOTICE_DAYS": int(os.getenv("OPPORTUNITY_DEADLINE_NOTICE_DAYS", 3)),
+    # Cap on rows in one contact export: a shortlist is small, and the zip is
+    # returned inline as base64.
+    "EXPORT_MAX_ROWS": int(os.getenv("SHORTLIST_EXPORT_MAX_ROWS", 500)),
 }
 
 # Role categories learnt from recruiters' JDs (matching/categories.py).
@@ -309,6 +330,8 @@ REST_FRAMEWORK = {
         "anon": os.getenv("ANON_THROTTLE_RATE", "60/hour"),
         # Per user, on every endpoint that may call the LLM or score a pool.
         "matching": os.getenv("MATCHING_THROTTLE_RATE", "30/hour"),
+        # Per user, on the shortlist exports (CV zip, contact zip).
+        "export": os.getenv("EXPORT_THROTTLE_RATE", "20/hour"),
     },
 }
 
