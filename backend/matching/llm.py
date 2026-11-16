@@ -711,8 +711,11 @@ def _dates_on_page(text: str) -> set[str]:
 #: Between two digits of one written number: at most one of - . ) ( or a
 #: single space, never a line break or a run of spaces.
 _PHONE_GAP = r"(?:\)?[ \-.]?\(?)"
-#: A country or trunk prefix written before a 10-digit number.
-_PHONE_PREFIX = r"(?:\(?\+?\d{1,4}\)?[ \-]?)"
+#: The prefixes allowed before an Indian 10-digit number: India's country
+#: code (+91, 091, 0091) or the trunk 0. Nothing else, so a longer run of
+#: digits that merely ends in the same ten (a PRN, a roll number) is not it.
+_PHONE_PREFIXES = ("", "0", "91", "091", "0091")
+_PHONE_PREFIX = r"(?:\(?\+?(?:0091|091|91|0)\)?[ \-]?)"
 
 
 def _phone_on_page(phone: str, text: str) -> bool:
@@ -726,9 +729,14 @@ def _phone_on_page(phone: str, text: str) -> bool:
     digits = re.sub(r"\D", "", phone or "")
     if len(digits) < 7:
         return False
-    body = digits[-10:] if len(digits) >= 10 else digits
+    indian = len(digits) >= 10 and digits[:-10] in _PHONE_PREFIXES
+    # Any other number (a landline, another country) is written out in full.
+    body = digits[-10:] if indian else digits
     written = _PHONE_GAP.join(re.escape(d) for d in body)
-    start = r"\(?" if len(digits) < 10 else rf"(?:{_PHONE_PREFIX}|\(?)"
+    # With no prefix of its own, the number must not follow another country's
+    # "+44 " either; a plain number before it ("2021 9876543210") is fine.
+    other_country = r"(?<!\+\d[ \-])(?<!\+\d\d[ \-])(?<!\+\d\d\d[ \-])"
+    start = rf"(?:{_PHONE_PREFIX}|{other_country}\(?)" if indian else r"\(?\+?"
     pattern = rf"(?<![\d+]){start}{written}(?!\d)"
     return re.search(pattern, text) is not None
 

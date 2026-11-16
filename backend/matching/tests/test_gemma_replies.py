@@ -123,6 +123,32 @@ class TestStatedFactsMustBeOnThePage:
         """QA-2: the old candidate regex ran across spaces into the next number."""
         assert llm.drop_unstated_facts({"phones": ["9876543210"]}, written)["phones"] == ["9876543210"]
 
+    @pytest.mark.parametrize(
+        "written, kept",
+        [
+            ("+919876543210", True), ("919876543210", True), ("0919876543210", True),
+            ("00919876543210", True), ("+91 9876543210", True),
+            ("PRN 12349876543210", False), ("Roll no. 5559876543210", False),
+            ("ID 449876543210", False), ("+44 9876543210", False),
+        ],
+    )
+    def test_only_an_indian_or_trunk_prefix_may_stand_before_the_number(self, written, kept):
+        """QA-2: a long PRN ending in the same ten digits must not ground a phone."""
+        assert llm.drop_unstated_facts({"phones": ["9876543210"]}, written)["phones"] == (
+            ["9876543210"] if kept else []
+        )
+
+    @pytest.mark.parametrize(
+        "phone, written, kept",
+        [
+            ("+91 98765 43210", "Mobile 09876543210", True),
+            ("+44 20 7946 0958", "Tel +44 20 7946 0958", True),
+            ("+44 20 7946 0958", "Tel 2079460958", False),
+        ],
+    )
+    def test_the_models_own_prefix_must_be_one_of_them_too(self, phone, written, kept):
+        assert llm.drop_unstated_facts({"phones": [phone]}, written)["phones"] == ([phone] if kept else [])
+
     def test_an_age_must_be_written_as_a_number_of_its_own(self):
         assert llm.drop_unstated_facts({"age": 21}, "Age: 21")["age"] == 21
         assert llm.drop_unstated_facts({"age": 21}, "Batch of 2021, CGPA 8.21")["age"] is None
