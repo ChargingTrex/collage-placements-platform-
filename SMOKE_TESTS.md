@@ -1254,3 +1254,201 @@ transcript_prn_mismatch|1
 ```
 
 Server log: **0** 5xx responses, **0** tracebacks.
+
+## Gemma lane G2–G4 (2026-11-16)
+
+Model `gemma4:e4b` (Q4_K_M) in Ollama on the demo Mac's CPU, with
+`LLM_REASONING_EFFORT=none`. Ollama gives it a 4,096-token context.
+
+### G2: eval_extraction against the live model
+
+```
+$ LLM_ENABLED=true LLM_MODEL=gemma4:e4b LLM_REASONING_EFFORT=none LLM_TIMEOUT_SECONDS=600 \
+    ../.venv/bin/python manage.py eval_extraction --llm --dump <scratchpad>/g2/no_thinking
+  backend_engineer: 136.2s        (cold: includes loading the model)
+  data_engineer: 156.2s           (contended)
+  frontend_intern: 73.7s
+  mechanical_designer: 71.4s
+  marketing_executive: 70.0s
+  civil_fresher: 138.1s           (contended)
+  electronics_dated: 176.6s       (contended)
+  operations_multi_job: 310.9s    (contended)
+  biotech_masters: 178.7s         (contended)
+  designer_short_dates: 218.3s    (contended)
+Extraction accuracy on 10 hand-checked sample resumes
+
+field        scored        regex          llm       engine
+experience       10   10/10 100%    4/10  40%   10/10 100%
+education        10   10/10 100%   10/10 100%   10/10 100%
+age               1     1/1 100%     1/1 100%     1/1 100%
+cgpa              2     2/2 100%     2/2 100%     2/2 100%
+```
+
+"Contended" means the timing is not the model's own. From about 20:00, other
+sessions ran up to 19 pytest processes on this machine (load average 100–150),
+and a second, unidentified client called Ollama's chat endpoint three times
+between 20:08 and 20:19. Prompts were 563–611 tokens and replies 296–349
+tokens throughout.
+
+The `llm` column counts dated experience entries only. Six samples give
+experience only as a duration, so it scores 4/10. The `engine` column applies
+`MatchingEngine.analyse_resume`'s blend (what the portal stores), which falls
+back to regex for those six.
+
+The only stated fact the grounding guard dropped was backend_engineer's
+`date_of_birth: "2002-09-01"`. The resume states no DOB: the model read it out
+of the PRN 220200901. The ten replies are now fixtures under
+`backend/matching/tests/fixtures/gemma/no_thinking/`.
+`test_gemma_replies.py` replays them offline: the DOB is dropped, and the
+blend scores at least regex on every field.
+
+### Context: does a long resume fit in 4,096 tokens?
+
+`MAX_INPUT_CHARS` is 12,000. Probes with a synthetic resume cut to that length:
+
+| input | prompt tokens | reply tokens | finish | result |
+|---|---|---|---|---|
+| 12,000 chars, one person, prose projects | 3,041 | 380 | stop | name and email at the top, CGPA and last skill at the end all read |
+| 12,000 chars, ten samples pasted together | 3,499 | 597 | length | reply cut mid-JSON |
+| 8,000 chars, ten samples pasted together | 2,494 | 1,602 | length | reply cut mid-JSON |
+
+No sample resume comes near the limit (the longest is 673 characters). A real
+one-person resume at the cap fits with about 650 tokens to spare. The reply
+grows with the number of entries, so a resume crowded with jobs, projects and
+degrees can still run out. Such a reply used to be parsed as invalid JSON and
+retried with a longer prompt. `chat_json` now raises on `finish_reason:
+"length"`, so the engine falls back to regex after one call (`8d5ceb1`).
+`num_ctx` is left as it is: a larger context costs RAM, and the machine ran
+out of it today.
+
+### G4: live analysis under gunicorn
+
+Settings: `LLM_TIMEOUT_SECONDS=200` and
+`RESUME_ANALYSIS_TIME_BUDGET_SECONDS=220`, which is 20 s under
+`serve_demo`'s `--timeout 240`. A reply took 70–90 s warm, 136 s cold and
+167 s for a 12,000-character resume, so one reply always fits. After a warm
+reply there is room for the retry. After a slow one, `may_retry()` skips it
+and the remaining time goes to the embedding.
+
+```
+$ gunicorn config.wsgi --workers 1 --timeout 240   (LLM on, the values above)
+$ python g4_live.py http://127.0.0.1:8765 kabir_nair_frontend.pdf 220200905 kabir.nair@college.edu
+signup 201 / verify 200 / upload 201
+analyze 200 51.2s
+{'status': 'done', 'source': 'llm', 'model_name': 'gemma4:e4b', 'experience_years': 0.5,
+ 'education_level': 'UG', 'retryable': False, 'categories': ['Frontend Developer']}
+
+$ ollama stop gemma4:e4b            # cold start
+$ python g4_live.py ... arjun_deshmukh_mechanical.docx 220200909 arjun.deshmukh@college.edu
+analyze 200 88.1s
+{'status': 'done', 'source': 'llm', 'model_name': 'gemma4:e4b', 'experience_years': 4.0,
+ 'education_level': 'UG', 'retryable': False, 'categories': ['Mechanical Design Engineer']}
+```
+
+Both values match the hand-checked ones (0.5 and 4 years). Each request made
+one chat call and two embedding calls. The server log shows no 5xx responses
+and no tracebacks.
+
+---
+
+## Demo-script E2E (`backend/checkpoints/e2e_demo.py`)
+
+Walks the 15-minute demo in `WEEKEND_DEMO_PLAN.md` ("Monday: the demo") against
+a running server, one group of checks per beat:
+
+| Group | Demo beat |
+|---|---|
+| 1, 1b | Officer's All users page, filters and summary; one-click persona sign-in |
+| 2 | Outcomes dashboard, batch filter, CSV export |
+| 3 | Officer's Profiles list and its verification checks |
+| 4 | Student detail (roster, transcript and self-reported CGPA); resume download and its audit-log row |
+| 5 | Someone else's transcript refused; the student's own accepted with a CGPA review |
+| 6 | Acme JD search: ranked students, score breakdown, role categories |
+| 7 | Nimbus cannot see hidden or shortlisted-only students |
+
+Standard library only, apart from the PDFs it draws with the backend's own
+reportlab, so run it with the project venv. Synthetic data only.
+
+> **Warning: both modes write to their target.** Default mode uploads Aarav's
+> transcript (opening a CGPA review), runs his resume analysis, signs in
+> several accounts and writes audit rows. `--public` makes a real signup, which
+> sends an OTP email. Never run either against the demo DB snapshot, or against
+> a public link that has real accounts. Use a throwaway database.
+
+A missing seed, a 404 where an endpoint should exist, a server that is down, or
+a run with no passing checks is a FAIL with exit status 1, never a quiet pass.
+
+### Run it (default: deterministic, LLM off)
+
+```bash
+cd backend
+export LLM_ENABLED=false DATABASE_URL=sqlite:////tmp/demo.sqlite3 MEDIA_ROOT=/tmp/demo-media
+../.venv/bin/python manage.py migrate
+../.venv/bin/python manage.py seed_demo --with-students
+../.venv/bin/python manage.py seed_outcomes_demo
+../.venv/bin/python manage.py runserver 127.0.0.1:8791 --noreload     # another terminal, same exports
+
+../.venv/bin/python checkpoints/e2e_demo.py --base-url http://127.0.0.1:8791
+```
+
+Nothing in this mode asserts on what Gemma or the embeddings say, so it is
+the same with the LLM off. Prove it with `--repeat 2`, which runs the suite
+twice in fresh processes and fails unless the output is identical:
+
+```bash
+../.venv/bin/python checkpoints/e2e_demo.py --base-url http://127.0.0.1:8791 --repeat 2
+```
+
+The audit-log checks read `core_auditlog` straight from the SQLite file named
+by `DATABASE_URL` (or `--db PATH`), since the API has no audit-log endpoint;
+without a readable file they are reported SKIP. Re-running is safe: the suite
+re-uploads Aarav's own transcript each time (it replaces the last one) and
+counts audit rows as before/after deltas.
+
+### `--live-ai`
+
+`--live-ai` (or `E2E_LIVE_AI=1`) adds the assertions that need Gemma and
+embeddings: the JD reading has a canonical role, the vector index answers (no
+fallback), and the role category exists after the search. Start the server
+without `LLM_ENABLED=false`, and only while no other agent is using Ollama.
+
+### `--public` (server with DEBUG off, e.g. `serve_demo`)
+
+```bash
+../.venv/bin/python checkpoints/e2e_demo.py --public --base-url https://<public-link>
+```
+
+It needs the seeded roster and officer (`seed_demo`): it provokes a real signup
+for roster student 220200905 and signs the officer in, to scan those responses.
+It asserts: `/api/health` reports `debug=false`; a bad URL
+is a plain 404 with no Django debug page or traceback; `/media/...` is 404;
+`GET /api/auth/demo/personas` and `POST /api/auth/demo/login` (every persona)
+are 404 and issue no tokens; and no response body from signup, OTP request,
+login or `me` carries an OTP or sign-in code, in a JSON key or as a 6-digit
+number beside the word "code" or "otp".
+Run against a DEBUG server it fails (checked), so it does bite. A signup that
+is throttled (429) counts as fine, so repeat runs stay identical.
+
+### Expected output
+
+A `FAIL` anywhere means the demo path is broken. The only SKIP in default mode
+is the `--live-ai` check:
+
+```text
+e2e_demo: demo mode
+
+== 0. Server and sign-in
+PASS  server answers /api/health with 200
+PASS  the shared officer can sign in with a password
+...
+== 1b. Demo persona sign-in (/api/auth/demo/)
+PASS  1b. personas lists the four buttons (student, officer, acme, nimbus)
+...
+== 7. Recruiter (Nimbus): hidden and shortlisted-only students stay out of sight
+PASS  7. Nimbus does not see the hidden student
+PASS  7. Nimbus does not see the one only Acme shortlisted
+...
+111/111 checks passed, 1 skipped
+```
+
+`--public` ends `20/20 checks passed`. Exit status is 1 if any check fails.

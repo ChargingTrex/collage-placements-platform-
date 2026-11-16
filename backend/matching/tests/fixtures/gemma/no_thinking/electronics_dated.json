@@ -1,0 +1,38 @@
+{
+ "key": "electronics_dated",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 176.5,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 175.2,
+   "content": "{\n  \"full_name\": \"Meera Iyer\",\n  \"emails\": [\n    \"meera.iyer@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.E.\",\n      \"level\": \"UG\",\n      \"field\": \"Electronics and Telecommunication\",\n      \"institution\": null,\n      \"start\": \"2022\",\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Embedded Systems Intern\",\n      \"organization\": \"Volta Devices\",\n      \"kind\": \"internship\",\n      \"start\": \"2023-06\",\n      \"end\": \"2023-11\",\n      \"is_current\": false,\n      \"summary\": \"Wrote STM32 firmware drivers and tested sensor boards.\"\n    },\n    {\n      \"role\": \"Hardware Test Engineer Intern\",\n      \"organization\": \"Circuitry Labs\",\n      \"kind\": \"internship\",\n      \"start\": \"2024-01\",\n      \"end\": \"2024-06\",\n      \"is_current\": false,\n      \"summary\": \"Built test jigs and ran EMI pre-compliance checks.\"\n    }\n  ],\n  \"skills\": [\n    \"Embedded C\",\n    \"STM32\",\n    \"PCB design\",\n    \"KiCad\",\n    \"oscilloscopes\",\n    \"soldering\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-848",
+    "object": "chat.completion",
+    "created": 1794839706,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Meera Iyer\",\n  \"emails\": [\n    \"meera.iyer@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.E.\",\n      \"level\": \"UG\",\n      \"field\": \"Electronics and Telecommunication\",\n      \"institution\": null,\n      \"start\": \"2022\",\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Embedded Systems Intern\",\n      \"organization\": \"Volta Devices\",\n      \"kind\": \"internship\",\n      \"start\": \"2023-06\",\n      \"end\": \"2023-11\",\n      \"is_current\": false,\n      \"summary\": \"Wrote STM32 firmware drivers and tested sensor boards.\"\n    },\n    {\n      \"role\": \"Hardware Test Engineer Intern\",\n      \"organization\": \"Circuitry Labs\",\n      \"kind\": \"internship\",\n      \"start\": \"2024-01\",\n      \"end\": \"2024-06\",\n      \"is_current\": false,\n      \"summary\": \"Built test jigs and ran EMI pre-compliance checks.\"\n    }\n  ],\n  \"skills\": [\n    \"Embedded C\",\n    \"STM32\",\n    \"PCB design\",\n    \"KiCad\",\n    \"oscilloscopes\",\n    \"soldering\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 606,
+     "prompt_tokens_details": {
+      "cached_tokens": 93
+     },
+     "completion_tokens": 404,
+     "total_tokens": 1010
+    }
+   }
+  }
+ ]
+}

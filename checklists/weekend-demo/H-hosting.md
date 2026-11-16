@@ -18,3 +18,5 @@ Owner: H builder. QA: QA-1.
   - `/django-admin/` is disabled or has a strong password
   - demo sign-in returns 404
   - no sign-in code appears in any response
+- [ ] H6: The two proxy limits from the plan's Friday proxy check are handled in writing (added by the verifier; the plan lists both and no item covered them). **Pass when:** the hosting notes say (a) how ngrok's free-tier browser-warning page is avoided for forwarded `/api/*` calls (the `ngrok-skip-browser-warning` header cannot be set by a Netlify redirect, so name the workaround or use a Cloudflare tunnel), and (b) that Netlify cuts forwarded requests at about half a minute, so resume analysis and the live upload are demonstrated on `localhost`, never through the public link.
+- [ ] H7: `/api/health` does not disclose the server's file paths on the public link (added by the verifier). With `DJANGO_DEBUG=false` it returned `checks.storage.location` as an absolute path under the user's home or temp directory (verifier run, 2026-11-16 21:00). **Pass when:** with DEBUG off the health reply omits the location, or H5 records it as accepted.

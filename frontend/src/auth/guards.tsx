@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 
 import { areaOf, type Role } from '@/api/auth'
-import { homePathFor, useAuth } from '@/auth/AuthContext'
+import { homePathFor, landingPathFor, useAuth } from '@/auth/AuthContext'
 
 function Checking() {
   return <p className="px-6 py-16 text-center text-sm text-ink-400">Checking your session…</p>
@@ -33,8 +33,11 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
 
 export function RedirectIfSignedIn({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
+  // Signing in re-renders /login with a user before the page's own navigate
+  // runs, so this redirect decides the landing; keep it in step with it.
+  const from = (useLocation().state as { from?: string } | null)?.from
 
   if (loading) return <Checking />
-  if (user) return <Navigate to={homePathFor(user)} replace />
+  if (user) return <Navigate to={landingPathFor(user, from)} replace />
   return <>{children}</>
 }

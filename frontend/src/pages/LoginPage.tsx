@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { ApiError } from '@/api/client'
-import { authApi } from '@/api/auth'
-import { homePathFor, useAuth } from '@/auth/AuthContext'
+import { authApi, type DemoPersona } from '@/api/auth'
+import { landingPathFor, useAuth } from '@/auth/AuthContext'
 import { AuthLayout } from '@/components/AppShell'
 import { Alert, Button, Field } from '@/components/ui'
 
@@ -22,6 +22,33 @@ export default function LoginPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [personas, setPersonas] = useState<DemoPersona[]>([])
+  const [demoBusy, setDemoBusy] = useState<string | null>(null)
+
+  // Only a local demo server answers this; anywhere else it is a 404 and the
+  // page stays exactly as it was, password only.
+  useEffect(() => {
+    let cancelled = false
+    authApi
+      .demoPersonas()
+      .then((result) => !cancelled && setPersonas(result.personas ?? []))
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handleDemoLogin(persona: DemoPersona) {
+    setError(null)
+    setDemoBusy(persona.key)
+    try {
+      landAfterLogin(await authApi.demoLogin(persona.key))
+    } catch (caught) {
+      fail(caught)
+    } finally {
+      setDemoBusy(null)
+    }
+  }
 
   function fail(caught: unknown) {
     setError(caught instanceof ApiError ? caught : new ApiError(0, 'Something went wrong.'))
@@ -29,7 +56,7 @@ export default function LoginPage() {
 
   function landAfterLogin(result: Parameters<typeof signIn>[0]) {
     const user = signIn(result)
-    navigate(from && from !== '/login' ? from : homePathFor(user), { replace: true })
+    navigate(landingPathFor(user, from), { replace: true })
   }
 
   async function handlePasswordLogin(event: FormEvent) {
@@ -199,6 +226,37 @@ export default function LoginPage() {
           )}
         </form>
       )}
+
+      {personas.length ? (
+        <section aria-labelledby="demo-personas" className="mt-6 border-t border-ink-100 pt-5">
+          <h2 id="demo-personas" className="text-sm font-medium text-ink-800">
+            Demo sign-in
+          </h2>
+          <p className="mt-1 text-xs text-ink-400">
+            Local demo only: one click signs in as a seeded account. Off on the public link.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {personas.map((persona) => (
+              <Button
+                key={persona.key}
+                type="button"
+                variant="secondary"
+                size="sm"
+                loading={demoBusy === persona.key}
+                disabled={demoBusy !== null && demoBusy !== persona.key}
+                onClick={() => void handleDemoLogin(persona)}
+                className="flex-col items-start! gap-0.5! text-left"
+                title={persona.description}
+              >
+                <span>Sign in as {persona.label}</span>
+                <span className="font-mono text-xs font-normal text-ink-400">
+                  {persona.identifier}
+                </span>
+              </Button>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </AuthLayout>
   )
 }

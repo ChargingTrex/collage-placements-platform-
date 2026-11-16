@@ -105,12 +105,20 @@ class _BudgetedClient:
 
     The client's own timeout is per request, and one analysis makes up to
     three (a reply, a retry, an embedding), so it cannot bound the total.
+
+    The retry after an invalid reply is allowed only when what is left could
+    fit another call as long as the first one. On the demo's CPU one Gemma
+    reply takes 70-170 s, so inside a request budget a retry after a slow
+    reply could only time out, and would take the embedding's seconds with
+    it. With no practical budget (`manage.py analyze_resumes` run with a
+    large one) the retry still happens.
     """
 
     def __init__(self, inner: llm.LLMClient, deadline: float):
         self._inner = inner
         self._deadline = deadline
         self._configured = inner.timeout
+        self._last_chat_seconds = 0.0
 
     @property
     def model(self) -> str:
@@ -128,7 +136,15 @@ class _BudgetedClient:
 
     def chat_json(self, system: str, user: str) -> str:
         self._arm()
-        return self._inner.chat_json(system, user)
+        started = time.monotonic()
+        try:
+            return self._inner.chat_json(system, user)
+        finally:
+            self._last_chat_seconds = time.monotonic() - started
+
+    def may_retry(self) -> bool:
+        """Whether another call as long as the last one fits in the budget."""
+        return self._deadline - time.monotonic() >= self._last_chat_seconds
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         self._arm()

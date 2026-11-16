@@ -95,8 +95,26 @@ class TestEvalExtractionWithAFakeLlm:
 
         output = run("--llm")
 
-        assert row(output, "field")[-2:] == ["regex", "llm"]
+        assert row(output, "field")[-3:] == ["regex", "llm", "engine"]
         assert len(client.prompts) == len(SAMPLE_RESUMES)
+
+    def test_the_engine_column_blends_like_the_engine(self, llm_on):
+        """No dated work from the model: the engine keeps regex's stated total."""
+        llm_on(FakeLLMClient(lambda system, user: resume_reply(experience=[])))
+
+        output = run("--llm")
+
+        n = len(SAMPLE_RESUMES)
+        freshers = sum(s.expected_experience_years == 0 for s in SAMPLE_RESUMES)
+        assert row(output, "experience")[-4] == f"{freshers}/{n}"  # llm: right only for the fresher
+        assert row(output, "experience")[-2] == f"{n}/{n}"  # engine: falls back to regex's total
+
+    def test_the_engine_column_is_regex_when_the_model_is_down(self, llm_on):
+        llm_on(FakeLLMClient(down=True))
+
+        output = run("--llm")
+
+        assert row(output, "experience")[-2] == row(output, "experience")[-6]
 
     def test_the_models_misses_are_listed_by_sample(self, llm_on):
         # A model that always answers UG with no dated work: right for a
@@ -112,7 +130,7 @@ class TestEvalExtractionWithAFakeLlm:
     def test_the_model_runs_whenever_it_is_enabled(self, llm_on):
         llm_on(FakeLLMClient(lambda system, user: resume_reply()))
 
-        assert row(run(), "field")[-1] == "llm"
+        assert row(run(), "field")[-2:] == ["llm", "engine"]
 
     def test_a_model_that_is_down_is_a_miss_not_a_crash(self, llm_on):
         llm_on(FakeLLMClient(down=True))
@@ -120,4 +138,28 @@ class TestEvalExtractionWithAFakeLlm:
         output = run("--llm")
 
         assert "unavailable" in output
-        assert row(output, "experience")[-2] == f"0/{len(SAMPLE_RESUMES)}"
+        assert row(output, "experience")[-4] == f"0/{len(SAMPLE_RESUMES)}"
+
+
+class TestRecordingReplies:
+    """G2: `--dump` keeps every raw reply, so real replies become fixtures."""
+
+    def test_each_samples_replies_and_timings_are_written(self, monkeypatch, tmp_path):
+        client = FakeLLMClient(["not json", resume_reply(experience=[])] + [resume_reply()] * 20)
+        monkeypatch.setattr(llm, "llm_enabled", lambda: True)
+        monkeypatch.setattr(llm, "get_client", lambda: client)
+
+        run("--llm", "--dump", str(tmp_path), "--sample", "backend_engineer", "--sample", "civil_fresher")
+
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["backend_engineer.json", "civil_fresher.json"]
+        record = json.loads((tmp_path / "backend_engineer.json").read_text())
+        assert record["model"] == "fake-llama"
+        assert [call["content"] for call in record["calls"]] == ["not json", json.dumps(resume_reply(experience=[]))]
+        assert all("seconds" in call for call in record["calls"])
+        assert len(json.loads((tmp_path / "civil_fresher.json").read_text())["calls"]) == 1
+
+    def test_an_unknown_sample_is_an_error(self):
+        from django.core.management.base import CommandError
+
+        with pytest.raises(CommandError):
+            run("--sample", "nobody")
