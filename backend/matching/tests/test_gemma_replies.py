@@ -41,16 +41,11 @@ class TestStatedFactsMustBeOnThePage:
     """G3a: a DOB, age, phone or email the resume does not write is dropped."""
 
     def test_the_recorded_hallucinated_dob_is_dropped(self):
-        """
-        With thinking off, gemma4 read the roll number 220200901 as a DOB.
-
-        `backend_engineer_dob.json` is reconstructed (its `note` says how):
-        that reply was measured but not saved.
-        """
-        record = recorded("no_thinking", "backend_engineer_dob")
+        """With thinking off, gemma4 read the roll number 220200901 as a DOB."""
+        record = recorded("no_thinking", "backend_engineer")
         assert json.loads(record["calls"][0]["content"])["date_of_birth"] == "2002-09-01"
 
-        facts = replay("no_thinking", "backend_engineer_dob", SAMPLES["backend_engineer"].text)
+        facts = replay("no_thinking", "backend_engineer")
 
         assert facts.data["date_of_birth"] is None
 
@@ -114,3 +109,43 @@ class TestStatedFactsMustBeOnThePage:
     def test_an_age_must_be_written_as_a_number_of_its_own(self):
         assert llm.drop_unstated_facts({"age": 21}, "Age: 21")["age"] == 21
         assert llm.drop_unstated_facts({"age": 21}, "Batch of 2021, CGPA 8.21")["age"] is None
+
+
+NO_THINKING_KEYS = sorted(path.stem for path in (FIXTURES / "no_thinking").glob("*.json"))
+
+
+class TestTheEngineNeverReadsWorseThanRegex:
+    """
+    G3b: on the recorded thinking-off replies, the engine's blend (what the
+    portal stores) scores at least as well as regex on every field.
+
+    The model alone scored experience 4/10 in that run: six samples give
+    experience only as a duration ("3 years"), and the model's reading
+    counts dated entries alone. The blend falls back to regex for those.
+    """
+
+    def test_every_sample_was_recorded(self):
+        assert NO_THINKING_KEYS == sorted(SAMPLES)
+
+    def test_per_field_hits(self):
+        from matching.management.commands.eval_extraction import (
+            FIELDS, engine_reading, expected, is_hit, llm_reading, regex_reading,
+        )
+
+        hits = {(column, field): 0 for column in ("regex", "engine") for field in FIELDS}
+        for key in NO_THINKING_KEYS:
+            sample = SAMPLES[key]
+            client = FakeLLMClient([call["content"] for call in recorded("no_thinking", key)["calls"]])
+            model = llm_reading(client)(sample.text, TODAY)
+            assert model is not None, f"{key}: the recorded reply did not parse"
+            regex = regex_reading(sample.text, TODAY)
+            readings = {"regex": regex, "engine": engine_reading(regex, model)}
+            for field in FIELDS:
+                want = expected(sample, field)
+                if want is None:
+                    continue
+                for column, reading in readings.items():
+                    hits[(column, field)] += is_hit(field, want, reading[field])
+
+        for field in FIELDS:
+            assert hits[("engine", field)] >= hits[("regex", field)], field

@@ -1,0 +1,38 @@
+{
+ "key": "backend_engineer",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 136.2,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 136.1,
+   "content": "{\n  \"full_name\": \"Aarav Mehta\",\n  \"emails\": [\n    \"aarav.mehta@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": \"2002-09-01\",\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.Tech\",\n      \"level\": \"UG\",\n      \"field\": \"Computer Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Backend Developer\",\n      \"organization\": \"Loadstar Logistics\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Built Django REST Framework APIs backing a fleet tracking product. Designed PostgreSQL schemas and tuned slow queries with EXPLAIN ANALYZE. Moved nightly reporting onto Celery workers running in Docker.\"\n    }\n  ],\n  \"skills\": [\n    \"Python\",\n    \"Django\",\n    \"Django REST Framework\",\n    \"PostgreSQL\",\n    \"SQL\",\n    \"Celery\",\n    \"Docker\",\n    \"Git\",\n    \"pytest\",\n    \"continuous integration\",\n    \"AWS\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-474",
+    "object": "chat.completion",
+    "created": 1794839023,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Aarav Mehta\",\n  \"emails\": [\n    \"aarav.mehta@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": \"2002-09-01\",\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.Tech\",\n      \"level\": \"UG\",\n      \"field\": \"Computer Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Backend Developer\",\n      \"organization\": \"Loadstar Logistics\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Built Django REST Framework APIs backing a fleet tracking product. Designed PostgreSQL schemas and tuned slow queries with EXPLAIN ANALYZE. Moved nightly reporting onto Celery workers running in Docker.\"\n    }\n  ],\n  \"skills\": [\n    \"Python\",\n    \"Django\",\n    \"Django REST Framework\",\n    \"PostgreSQL\",\n    \"SQL\",\n    \"Celery\",\n    \"Docker\",\n    \"Git\",\n    \"pytest\",\n    \"continuous integration\",\n    \"AWS\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 611,
+     "prompt_tokens_details": {
+      "cached_tokens": 0
+     },
+     "completion_tokens": 349,
+     "total_tokens": 960
+    }
+   }
+  }
+ ]
+}

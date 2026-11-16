@@ -1,0 +1,38 @@
+{
+ "key": "data_engineer",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 156.2,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 156.1,
+   "content": "{\n  \"full_name\": \"Sana Qureshi\",\n  \"emails\": [\n    \"sana.qureshi@college.edu\"\n  ],\n  \"phones\": [\n    \"220200904\"\n  ],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"M.Tech\",\n      \"level\": \"Masters\",\n      \"field\": \"Data Science\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Data Engineer\",\n      \"organization\": \"Nimbus Analytics\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Wrote Python ETL pipelines orchestrated with Airflow. Modelled PostgreSQL warehouse tables and optimised reporting queries. Packaged jobs in Docker and shipped them through a CI pipeline.\"\n    }\n  ],\n  \"skills\": [\n    \"Python\",\n    \"SQL\",\n    \"PostgreSQL\",\n    \"Airflow\",\n    \"pandas\",\n    \"ETL\",\n    \"Docker\",\n    \"Git\",\n    \"Django ORM\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-256",
+    "object": "chat.completion",
+    "created": 1794839179,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Sana Qureshi\",\n  \"emails\": [\n    \"sana.qureshi@college.edu\"\n  ],\n  \"phones\": [\n    \"220200904\"\n  ],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"M.Tech\",\n      \"level\": \"Masters\",\n      \"field\": \"Data Science\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Data Engineer\",\n      \"organization\": \"Nimbus Analytics\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Wrote Python ETL pipelines orchestrated with Airflow. Modelled PostgreSQL warehouse tables and optimised reporting queries. Packaged jobs in Docker and shipped them through a CI pipeline.\"\n    }\n  ],\n  \"skills\": [\n    \"Python\",\n    \"SQL\",\n    \"PostgreSQL\",\n    \"Airflow\",\n    \"pandas\",\n    \"ETL\",\n    \"Docker\",\n    \"Git\",\n    \"Django ORM\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 600,
+     "prompt_tokens_details": {
+      "cached_tokens": 98
+     },
+     "completion_tokens": 342,
+     "total_tokens": 942
+    }
+   }
+  }
+ ]
+}

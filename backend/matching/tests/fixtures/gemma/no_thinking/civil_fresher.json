@@ -1,0 +1,38 @@
+{
+ "key": "civil_fresher",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 138.1,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 138.0,
+   "content": "{\n  \"full_name\": \"Rohan Patil\",\n  \"emails\": [\n    \"rohan.patil@college.edu\"\n  ],\n  \"phones\": [\n    \"+91 98220 11223\"\n  ],\n  \"age\": 21,\n  \"date_of_birth\": \"2005-05-14\",\n  \"cgpa\": 7.8,\n  \"education\": [\n    {\n      \"degree\": \"B.Tech\",\n      \"level\": \"UG\",\n      \"field\": \"Civil Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": 7.8\n    }\n  ],\n  \"experience\": [],\n  \"skills\": [\n    \"AutoCAD\",\n    \"STAAD Pro\",\n    \"surveying\",\n    \"levelling\",\n    \"concrete testing\"\n  ],\n  \"projects\": [\n    {\n      \"title\": \"Rainwater harvesting tank for a village school.\",\n      \"tech_stack\": []\n    },\n    {\n      \"title\": \"Soil testing for a farmhouse foundation.\",\n      \"tech_stack\": []\n    }\n  ],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-158",
+    "object": "chat.completion",
+    "created": 1794839532,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Rohan Patil\",\n  \"emails\": [\n    \"rohan.patil@college.edu\"\n  ],\n  \"phones\": [\n    \"+91 98220 11223\"\n  ],\n  \"age\": 21,\n  \"date_of_birth\": \"2005-05-14\",\n  \"cgpa\": 7.8,\n  \"education\": [\n    {\n      \"degree\": \"B.Tech\",\n      \"level\": \"UG\",\n      \"field\": \"Civil Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": 7.8\n    }\n  ],\n  \"experience\": [],\n  \"skills\": [\n    \"AutoCAD\",\n    \"STAAD Pro\",\n    \"surveying\",\n    \"levelling\",\n    \"concrete testing\"\n  ],\n  \"projects\": [\n    {\n      \"title\": \"Rainwater harvesting tank for a village school.\",\n      \"tech_stack\": []\n    },\n    {\n      \"title\": \"Soil testing for a farmhouse foundation.\",\n      \"tech_stack\": []\n    }\n  ],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 598,
+     "prompt_tokens_details": {
+      "cached_tokens": 94
+     },
+     "completion_tokens": 307,
+     "total_tokens": 905
+    }
+   }
+  }
+ ]
+}
