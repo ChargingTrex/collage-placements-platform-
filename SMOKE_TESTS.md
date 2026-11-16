@@ -1489,6 +1489,9 @@ manage.py read_jd demo_jds/data_analyst.txt --timeout 300
   model name.
 - With the default locmem cache, `read_jd` warns: the server would never see
   the reading.
+- With `CACHE_BACKEND=file`, DRF throttle counters persist across restarts
+  too. Clear `backend/.cache` (or your `CACHE_LOCATION`) before the demo,
+  then re-run `read_jd`.
 - Paste from the same `.txt` file given to `read_jd`. A copy from a rendered
   page can change an em dash or the spacing inside the text, and then the
   search misses the cache.
