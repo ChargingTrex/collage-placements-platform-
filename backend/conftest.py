@@ -92,16 +92,17 @@ def _isolated_media(tmp_path, settings):
 
 
 @pytest.fixture(autouse=True)
-def _offline_ai(settings):
-    """
-    Tests never reach a real model or a real MongoDB, whatever .env says.
+def _offline_resume_intelligence(settings):
+    """A developer's .env may switch on Ollama and MongoDB for live use; tests
+    never reach either. A test that needs a model passes a FakeLLMClient, and
+    the real-MongoDB test reads MONGO_URI from the environment itself."""
+    from matching.vectorstore import reset_vector_store
 
-    A demo `.env` turns the LLM on and may set MONGO_URI; without this the
-    suite would call Ollama (slow, nondeterministic) or a live database.
-    Tests that exercise those paths set them explicitly after this runs.
-    """
     settings.LLM = {**settings.LLM, "ENABLED": False}
-    settings.VECTOR_STORE = {**settings.VECTOR_STORE, "MONGO_URI": ""}
+    settings.VECTOR_STORE = {**settings.VECTOR_STORE, "BACKEND": "local", "MONGO_URI": ""}
+    reset_vector_store()
+    yield
+    reset_vector_store()
 
 
 @pytest.fixture(autouse=True)

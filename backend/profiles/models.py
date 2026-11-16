@@ -624,6 +624,18 @@ class CompanyShortlist(TimeStampedModel):
     )
     note = models.CharField(max_length=500, blank=True)
 
+    class Source(models.TextChoices):
+        # A recruiter chose this student.
+        MANUAL = "manual", "Shortlisted by the company"
+        # The student applied to one of this company's openings. Applying is
+        # the student's consent to be seen by that company, so the row exists
+        # to grant visibility -- it does NOT mean the recruiter picked them.
+        # Exports and the Shortlist page must not treat it as a pick
+        # (DECISIONS D27).
+        APPLICATION = "application", "Applied to the company"
+
+    source = models.CharField(max_length=16, choices=Source.choices, default=Source.MANUAL)
+
     class Meta:
         ordering = ["-created_at"]
         constraints = [

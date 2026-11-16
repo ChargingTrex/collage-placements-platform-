@@ -36,6 +36,7 @@ These come from decisions already taken. A design that breaks one is wrong.
 - **Applying creates the `CompanyShortlist` link.** Without it, a student on
   "shortlisted only" visibility can never be reached by a new company. Pinned by
   `test_narrowing_to_shortlisted_keeps_the_companies_already_interested`.
+- **Phase B ships two in-app notification triggers** (D26): a new eligible opportunity, and a deadline approaching. Email and status-change notifications stay in Phase D.
 - **Notifications go to in-app and email only**, and the server rejects any other
   channel with a 422.
 - **Documents go through authenticated endpoints** (D25), and each admin or

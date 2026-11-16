@@ -313,8 +313,16 @@ RESUME_ANALYSIS = {
 #
 # nomic puts unrelated English near 0.5, so the floor is the least relevant
 # sample (0.50); the ceiling sits just above the best profile (0.88).
+#
+# The live run (plan §5.4, main 2ed4fe1) measured the same raw-text column.
 MATCH_SCORE = {
-    "WEIGHTS": {"semantic": 0.45, "skills": 0.35, "experience": 0.10, "education": 0.10},
+    # "certifications" is a slot for Phase C (certifications held). It stays 0
+    # until that phase exists: the engine scores only the parts it computes,
+    # so a zero weight changes nothing (DECISIONS D28).
+    "WEIGHTS": {
+        "semantic": 0.45, "skills": 0.35, "experience": 0.10, "education": 0.10,
+        "certifications": 0.0,
+    },
     "CALIBRATION": {
         "embedding": {
             "FLOOR": float(os.getenv("MATCH_EMBEDDING_FLOOR", 0.50)),
@@ -361,6 +369,21 @@ else:
 # How long a JD's model reading stays cached (default a day). A JD read the
 # evening before a demo needs more: `read_jd --ttl` sets it per reading.
 JD_CACHE_SECONDS = int(os.getenv("JD_CACHE_SECONDS", 60 * 60 * 24))
+
+# Phase B / Addendum 2. SUGGESTIONS.MIN_SCORE is on the calibrated 0-100
+# match score, so one figure means the same on spaCy, TF-IDF and embeddings
+# (a raw similarity cut would not). OPPORTUNITIES.DEADLINE_NOTICE_DAYS is how
+# far ahead `notify_deadlines` warns eligible students who have not applied.
+SUGGESTIONS = {
+    "MIN_SCORE": int(os.getenv("SUGGESTIONS_MIN_SCORE", 50)),
+    "MAX_RESULTS": int(os.getenv("SUGGESTIONS_MAX_RESULTS", 20)),
+}
+OPPORTUNITIES = {
+    "DEADLINE_NOTICE_DAYS": int(os.getenv("OPPORTUNITY_DEADLINE_NOTICE_DAYS", 3)),
+    # Cap on rows in one contact export: a shortlist is small, and the zip is
+    # returned inline as base64.
+    "EXPORT_MAX_ROWS": int(os.getenv("SHORTLIST_EXPORT_MAX_ROWS", 500)),
+}
 
 # Role categories learnt from recruiters' JDs (matching/categories.py).
 # MERGE_THRESHOLD is a raw embedding cosine between a JD and a same-titled
@@ -423,6 +446,8 @@ REST_FRAMEWORK = {
         "anon": os.getenv("ANON_THROTTLE_RATE", "60/hour"),
         # Per user, on every endpoint that may call the LLM or score a pool.
         "matching": os.getenv("MATCHING_THROTTLE_RATE", "30/hour"),
+        # Per user, on the shortlist exports (CV zip, contact zip).
+        "export": os.getenv("EXPORT_THROTTLE_RATE", "20/hour"),
     },
 }
 

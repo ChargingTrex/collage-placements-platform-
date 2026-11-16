@@ -315,6 +315,55 @@ views that check who is asking (own, admin, or a company the profile is
 visible to). Each admin or company open writes a `document_accessed` audit row.
 Companies never get a transcript.
 
+### D26 · Phase B ships a minimal in-app notification slice
+
+Taken 2026-11-16. `agents.md` Phase 4 lists "notifications on new matching
+opportunity or approaching deadline". The Phase B–D outline had deferred all
+notifications to Phase D, but `agents.md` governs, so Phase B builds two
+in-app triggers:
+
+- **On an opportunity opening:** notify eligible students. This uses the hard
+  department and CGPA check only, never a scoring pass inside the request.
+- **`notify_deadlines`:** warns eligible students who haven't applied. It is
+  idempotent, because notifications are unique per recipient, kind and
+  opportunity.
+
+Email, status-change notifications and the in-app/email-only channel rule
+stay in Phase D.
+
+### D27 · Applying grants visibility, but it is not a recruiter's pick
+
+Taken 2026-11-16. Applying creates a `CompanyShortlist` row, because the
+`agents.md` obligation says so and because applying is the student's consent to
+be seen by that company. The same table also records a recruiter's choices. If
+nothing told the two apart, a recruiter's "shortlist export" would include every
+applicant. Un-shortlisting an applicant would also hide them from the company
+they applied to.
+
+So `CompanyShortlist.source` is `manual` or `application`. The full rules are in
+`docs/OPPORTUNITIES_API_CONTRACT.md` § Shortlist semantics. In short:
+- withdrawing removes only an application-sourced grant;
+- un-shortlisting an active applicant downgrades the row to `application`
+  instead of deleting it;
+- "the company's shortlist" means manual rows plus applications at status
+  `shortlisted` or later, always intersected with `visible_to`.
+
+### D28 · Who may apply, and what counts as eligible
+
+Taken 2026-11-16.
+
+- **Eligibility uses the roster's department and CGPA only,** never a CGPA the
+  student typed in or one read from a transcript (D24).
+- **Those two block an application.** Experience and education are screening
+  filters for recruiters, not apply blocks.
+- **The match score is shown whatever the eligibility,** as a separate flag.
+- **Admin-created postings open immediately.** A recruiter's posting waits for
+  the placement cell's approval.
+- **A hidden student may apply.** The company then sees the application, but
+  never the profile through browse or the exports.
+- **`MATCH_SCORE["WEIGHTS"]["certifications"]` is 0** until Phase C gives
+  certifications something to score.
+
 ---
 
 ## Deferred, deliberately

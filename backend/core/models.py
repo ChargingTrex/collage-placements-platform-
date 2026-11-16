@@ -38,6 +38,19 @@ class AuditLog(models.Model):
         TRANSCRIPT_PRN_MISMATCH = "transcript_prn_mismatch", "Transcript names a different PRN"
         CGPA_MISMATCH_FLAGGED = "cgpa_mismatch_flagged", "Transcript CGPA flagged for review"
         CGPA_REVIEW_RESOLVED = "cgpa_review_resolved", "CGPA review resolved"
+        # Phase B / Addendum 2: postings, applications, exports. Added together
+        # in one migration so the parallel streams never race on core/.
+        OPPORTUNITY_CREATED = "opportunity_created", "Opportunity created"
+        OPPORTUNITY_SUBMITTED = "opportunity_submitted", "Opportunity submitted for review"
+        OPPORTUNITY_APPROVED = "opportunity_approved", "Opportunity approved"
+        OPPORTUNITY_REJECTED = "opportunity_rejected", "Opportunity rejected"
+        OPPORTUNITY_CLOSED = "opportunity_closed", "Opportunity closed"
+        APPLICATION_CREATED = "application_created", "Application made"
+        APPLICATION_WITHDRAWN = "application_withdrawn", "Application withdrawn"
+        APPLICATION_STATUS_CHANGED = "application_status_changed", "Application status changed"
+        APPLICATIONS_EXPORTED = "applications_exported", "Applicant list exported"
+        SHORTLIST_EXPORTED = "shortlist_exported", "Shortlist contacts exported"
+        DOCUMENTS_BULK_DOWNLOADED = "documents_bulk_downloaded", "Shortlist CVs downloaded"
 
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
