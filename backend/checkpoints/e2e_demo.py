@@ -17,15 +17,21 @@ Modes
     --live-ai   adds the checks that need Gemma and embeddings (the JD is read
                 by the model, the vector index answers, a role category is made).
     --public    for a server running with DEBUG off (serve_demo). Runs only the
-                public-link security rules and needs no seed data.
+                public-link security rules. It still needs the seeded roster
+                and officer (`seed_demo`), because it provokes a real signup
+                and a login to scan their responses.
 
-Beats 1 and the persona sign-in depend on endpoints another builder is adding
-(`/api/auth/admin/users`, `/api/auth/demo/...`). Those checks are in a marked
-section and are reported SKIP while the endpoint answers 404.
+WARNING: both modes WRITE to their target. Default mode uploads Aarav's
+transcript and opens a CGPA review, and writes audit rows. `--public` makes a
+real signup, which sends an OTP email. Never run either against the demo DB
+snapshot or against a public link that has real accounts.
 
-The audit-log check (beat 4) reads the `core_auditlog` table straight from the
-SQLite file (--db, default taken from DATABASE_URL), because the API has no
-audit-log endpoint. Without a readable file it is reported SKIP.
+A missing seed, an endpoint that answers 404, or a run with no checks is a
+FAIL, never a quiet pass.
+
+The audit-log checks read the `core_auditlog` table straight from the SQLite
+file (--db, default taken from DATABASE_URL), because the API has no audit-log
+endpoint. Without a readable file they are reported SKIP.
 
 Standard library plus, for the transcript PDFs, the backend's own reportlab
 (run it with the project venv). Synthetic data only. Exits 1 on any FAIL.
@@ -38,6 +44,7 @@ import csv
 import io
 import json
 import os
+import re
 import sqlite3
 import sys
 import tempfile
@@ -47,8 +54,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-BACKEND = HERE.parent
+BACKEND = Path(__file__).resolve().parent.parent
 
 #: Seeded by `seed_demo --with-students` (see that command's DEMO_STUDENTS).
 AARAV, DIYA, ROHAN, SANA = "220200901", "220200902", "220200903", "220200904"
@@ -71,6 +77,16 @@ PUBLIC_DEBUG_MARKERS = (
     "<title>Page not found at",
 )
 OTP_KEYS = {"debug_otp", "otp", "otp_code", "code", "sign_in_code", "signin_code", "login_code"}
+#: "code 123456", "otp: 123456", "\"otp\": \"123456\"", "123456 is your code"
+OTP_TEXT = re.compile(
+    r"(?:code|otp)\D{0,12}\d{6}(?!\d)|(?<!\d)\d{6}(?!\d)\W{0,12}(?:is your|code|otp)", re.IGNORECASE
+)
+PERSONA_KEYS = ("student", "officer", "acme", "nimbus")
+PILOT_OFFICER = ("pilot.officer@college.edu", "PilotPass!234")
+
+
+class ServerDown(Exception):
+    """The server did not answer at all (not an HTTP error status)."""
 
 
 class Run:
@@ -99,6 +115,8 @@ class Run:
                 status, raw, resp_headers = response.status, response.read(), response.headers
         except urllib.error.HTTPError as exc:
             status, raw, resp_headers = exc.code, exc.read(), exc.headers
+        except (urllib.error.URLError, OSError) as exc:
+            raise ServerDown(f"{method} {path}: {getattr(exc, 'reason', exc)}") from exc
         self.statuses.append(status)
         self.bodies.append((path, status, raw))
         try:
@@ -175,14 +193,16 @@ class AuditLog:
         default = BACKEND / "db.sqlite3"
         return cls(str(default) if default.exists() else None)
 
-    def count(self, action: str, target: str) -> int | None:
+    def count(self, action: str, target: str | None = None) -> int | None:
+        """Rows for an action, for one target or (target None) for all of them."""
         if not self.path:
             return None
+        sql, args = "SELECT COUNT(*) FROM core_auditlog WHERE action=?", [action]
+        if target is not None:
+            sql, args = sql + " AND target=?", args + [target]
         try:
             with sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, timeout=10) as conn:
-                return conn.execute(
-                    "SELECT COUNT(*) FROM core_auditlog WHERE action=? AND target=?", (action, target)
-                ).fetchone()[0]
+                return conn.execute(sql, args).fetchone()[0]
         except sqlite3.Error:
             return None
 
@@ -199,6 +219,13 @@ def render_transcript(prn: str, name: str, cgpa: str) -> bytes:
         path = Path(tmp) / "t.pdf"
         draw(path, prn=prn, name=name, cgpa=cgpa)
         return path.read_bytes()
+
+
+def upload_transcript(r: Run, token: str, prn: str, name: str, cgpa: str):
+    """POST a synthetic transcript to /api/profiles/me/transcript: (status, data)."""
+    pdf = render_transcript(prn, name, cgpa)
+    status, data, _, _ = r.call("POST", "/api/profiles/me/transcript", token=token, files={"file": (f"{prn}.pdf", pdf)})
+    return status, data
 
 
 def prns(rows) -> set[str]:
@@ -221,41 +248,108 @@ def walk_keys(node):
 
 def beat_0_server(r: Run) -> bool:
     r.header("0. Server and sign-in")
-    status, data = r.get("/api/health")
-    if not r.check("server answers /api/health with 200", status == 200, f"HTTP {status}"):
-        return False
-    return True
+    status, _ = r.get("/api/health")
+    return r.check("server answers /api/health with 200", status == 200, f"HTTP {status}")
 
 
-def beat_1_all_users(r: Run, admin: str) -> None:
-    r.header("1. Officer: All users page and filters (endpoint added by another builder)")
-    status, data = r.get("/api/auth/admin/users", admin)
-    if status == 404:
-        r.skip("1. /api/auth/admin/users lists students, admins and recruiters", "endpoint answers 404 (not merged yet)")
-        r.skip("1. the list filters to one school", "endpoint answers 404")
-        r.skip("1. /api/auth/admin/users/summary answers", "endpoint answers 404")
+USER_FIELDS = {
+    "id", "full_name", "display_name", "email", "role", "human_key", "prn", "admin_id", "company",
+    "status", "status_display", "is_active", "is_verified", "profile_verified", "onboarding_completed",
+    "student_id", "school", "school_name", "batch", "last_login", "date_joined",
+}
+
+
+def beat_1b_personas(r: Run) -> dict[str, str]:
+    """Persona sign-in. Returns {persona key: access token} for the ones that worked."""
+    r.header("1b. Demo persona sign-in (/api/auth/demo/)")
+    status, data = r.get("/api/auth/demo/personas")
+    keys = [p["key"] for p in (data or {}).get("personas", [])] if status == 200 else []
+    r.check("1b. personas lists the four buttons (student, officer, acme, nimbus)", sorted(keys) == sorted(PERSONA_KEYS), f"HTTP {status} {keys}")
+    tokens: dict[str, str] = {}
+    for key in PERSONA_KEYS:
+        status, data, _, _ = r.call("POST", "/api/auth/demo/login", body={"persona": key})
+        ok = status == 200 and bool((data or {}).get("tokens", {}).get("access")) and "user" in data
+        r.check(f"1b. demo login as {key} returns the normal login payload with tokens", ok, f"HTTP {status}")
+        if ok:
+            tokens[key] = data["tokens"]["access"]
+    roles = {"student": "student", "officer": "placement_admin", "acme": "company_recruiter:", "nimbus": "company_recruiter:"}
+    seen = {k: (r.get("/api/auth/me", t)[1] or {}).get("roles") or [""] for k, t in tokens.items()}
+    r.check("1b. each persona signs in with the right role (student, placement_admin, company_recruiter)",
+            len(tokens) == len(PERSONA_KEYS) and all(len(seen[k]) == 1 and seen[k][0].startswith(roles[k]) for k in tokens), f"{seen}")
+    status, _, _, _ = r.call("POST", "/api/auth/demo/login", body={})
+    r.check("1b. demo login without a persona is a 400", status == 400, f"HTTP {status}")
+    status, _, _, _ = r.call("POST", "/api/auth/demo/login", body={"persona": "root"})
+    r.check("1b. demo login as an unknown persona is a 404", status == 404, f"HTTP {status}")
+    return tokens
+
+
+def beat_1_all_users(r: Run, officers: dict[str, str], student: str, company: str, audit: AuditLog) -> None:
+    r.header("1. Officer: All users page and filters (/api/auth/admin/users)")
+    for how, token in officers.items():
+        status, data = r.get("/api/auth/admin/users", token)
+        r.check(f"1. the officer signed in by {how} lists users", status == 200 and data.get("count", 0) > 0, f"HTTP {status}")
+    persona = next((t for t in officers.values() if t), None)
+    if persona is None:
+        r.check("1. an officer token is available for the all-users checks", False, "no officer could sign in")
+        return
+    before = audit.count("identity_accessed")
+    status, data = r.get("/api/auth/admin/users", persona)
+    rows = (data or {}).get("results", [])
+    after = audit.count("identity_accessed")
+    r.check("1. the listing is paginated (count, next, previous, 20 rows per page)",
+            status == 200 and {"count", "next", "previous", "results"} <= set(data) and 0 < len(rows) <= 20, f"HTTP {status}")
+    r.check("1. a row carries every documented field", bool(rows) and all(USER_FIELDS <= set(row) for row in rows), f"{rows[:1]}")
+    if before is None:
+        r.skip("1. each listing writes exactly one identity_accessed audit row", "audit DB not readable (pass --db)")
     else:
-        # TODO(spec): tighten to the final response shape once it lands.
-        rows = data.get("results") if isinstance(data, dict) else data
-        r.check("1. /api/auth/admin/users lists users", status == 200 and bool(rows), f"HTTP {status}")
-        ids = " ".join(json.dumps(row) for row in rows or [])
-        r.check("1. the list shows PRN, ADM- and CMP- ids", AARAV in ids and "ADM-" in ids and "CMP-" in ids, "")
-        status, filtered = r.get("/api/auth/admin/users?school=computing_data_science", admin)
-        frows = filtered.get("results") if isinstance(filtered, dict) else filtered
-        r.check("1. the list filters to one school", status == 200 and 0 < len(frows or []) <= len(rows), f"HTTP {status}")
-        status, _ = r.get("/api/auth/admin/users/summary", admin)
-        r.check("1. /api/auth/admin/users/summary answers 200", status == 200, f"HTTP {status}")
+        r.check("1. each listing writes exactly one identity_accessed audit row", after == before + 1, f"{before} -> {after}")
+
+    by_role = {}
+    for role in ("student", "admin", "company"):
+        status, data = r.get(f"/api/auth/admin/users?role={role}", persona)
+        got = (data or {}).get("results", [])
+        by_role[role] = (data or {}).get("count") if status == 200 else None
+        r.check(f"1. role={role} filter returns only {role} rows",
+                status == 200 and bool(got) and all(row["role"] == role for row in got), f"HTTP {status}")
+    r.check("1. the page shows PRN, ADM- and CMP- keys",
+            r.get("/api/auth/admin/users?role=admin", persona)[1]["results"][0]["human_key"].startswith("ADM-")
+            and r.get("/api/auth/admin/users?role=company", persona)[1]["results"][0]["human_key"].startswith("CMP-")
+            and r.get("/api/auth/admin/users?role=student", persona)[1]["results"][0]["human_key"].isdigit(), "")
+    status, data = r.get("/api/auth/admin/users?school=computing_data_science&role=student", persona)
+    r.check("1. the school filter narrows to that school",
+            status == 200 and 0 < data["count"] < by_role["student"]
+            and all(row["school"] == "computing_data_science" for row in data["results"]), f"HTTP {status}")
+    status, data = r.get(f"/api/auth/admin/users?prn={AARAV}", persona)
+    r.check("1. the PRN filter finds exactly Aarav", status == 200 and data["count"] == 1 and data["results"][0]["prn"] == AARAV, f"HTTP {status}")
+    status, data = r.get(f"/api/auth/admin/users?prns={AARAV},220200999", persona)
+    r.check("1. a prns batch lookup reports the PRN it could not match",
+            status == 200 and data.get("unmatched_prns") == ["220200999"], f"HTTP {status}")
+    status, _ = r.get("/api/auth/admin/users?no_such_filter=1", persona)
+    r.check("1. an unknown query parameter is a 400", status == 400, f"HTTP {status}")
+
+    status, summary = r.get("/api/auth/admin/users/summary", persona)
+    ok = status == 200 and {"total", "by_role", "by_status", "schools", "batches"} <= set(summary)
+    r.check("1. summary answers with total, by_role, by_status, schools, batches", ok, f"HTTP {status}")
+    if ok:
+        total = r.get("/api/auth/admin/users", persona)[1]["count"]
+        r.check("1. summary total equals the list count", summary["total"] == total, f"{summary['total']} vs {total}")
+        r.check("1. summary by_role equals the per-role list counts", summary["by_role"] == by_role, f"{summary['by_role']} vs {by_role}")
+        r.check("1. summary by_status adds up to the total and has six statuses",
+                len(summary["by_status"]) == 6 and sum(summary["by_status"].values()) == summary["total"], f"{summary['by_status']}")
+        r.check("1. summary lists eight schools to filter on", len(summary["schools"]) == 8, f"{len(summary['schools'])}")
+    before = audit.count("identity_accessed")
+    status, _ = r.get("/api/auth/admin/users/summary?role=student", persona)
+    r.check("1. a query parameter on the summary is a 400", status == 400, f"HTTP {status}")
+    r.get("/api/auth/admin/users/summary", persona)
+    if before is not None:
+        r.check("1. the summary writes no audit row", audit.count("identity_accessed") == before, "")
+
+    status, _, _, _ = r.call("GET", "/api/auth/admin/users", token=student)
+    r.check("1. a student is refused (403)", status == 403, f"HTTP {status}")
+    status, _, _, _ = r.call("GET", "/api/auth/admin/users", token=company)
+    r.check("1. a recruiter is refused (403)", status == 403, f"HTTP {status}")
     status, _, _, _ = r.call("GET", "/api/auth/admin/users")
-    if status != 404:
-        r.check("1. all-users page refuses an anonymous caller", status in (401, 403), f"HTTP {status}")
-
-    r.header("1b. Demo persona sign-in (endpoint added by another builder)")
-    probe = r.call("GET", "/api/auth/demo/personas")[0]
-    if probe == 404:
-        r.skip("1b. persona sign-in under /api/auth/demo/ works", "endpoint answers 404 (not merged yet)")
-    else:
-        # TODO(spec): drive the persona buttons once the exact spec lands.
-        r.check("1b. persona list is reachable", probe == 200, f"HTTP {probe}")
+    r.check("1. an anonymous caller is refused (401)", status == 401, f"HTTP {status}")
 
 
 def beat_2_outcomes(r: Run, admin: str, company: str) -> None:
@@ -328,11 +422,14 @@ def beat_3_profiles(r: Run, admin: str, company: str) -> dict[str, str]:
         "",
     )
     flags = [flag for row in rows for flag in row["verification_checks"]]
+    r.check("3. at least one verification check is raised (Aarav's transcript CGPA against the roster)", bool(flags), "no flags on any row")
     r.check(
-        "3. each verification check says what it is about (code, severity, message)",
-        all({"code", "severity", "message"} <= set(flag) or {"message"} <= set(flag) for flag in flags),
+        "3. each verification check says what it is about (field, severity, message)",
+        bool(flags) and all({"field", "severity", "message"} <= set(flag) for flag in flags),
         f"{flags[:1]}",
     )
+    r.check("3. Aarav's row carries the check and counts it in warning_count",
+            bool(by_prn.get(AARAV, {}).get("verification_checks")) and by_prn[AARAV]["warning_count"] >= 0, "")
     r.check("3. verified state follows the seed (Aarav verified, Diya not)",
             by_prn.get(AARAV, {}).get("is_verified") is True and by_prn.get(DIYA, {}).get("is_verified") is False, "")
     r.check("3. the officer sees the hidden profile too", DIYA in by_prn and by_prn[DIYA]["visibility"] == "hidden", "")
@@ -391,11 +488,8 @@ def beat_4_student_detail(r: Run, admin: str, sids: dict[str, str], audit: Audit
         r.check("4. opening the detail wrote an identity_accessed row", audit.count("identity_accessed", AARAV) == before + 1, "")
 
 
-def beat_5_transcript(r: Run, admin: str, sids: dict[str, str], audit: AuditLog, student_pw: str) -> None:
+def beat_5_transcript(r: Run, admin: str, sids: dict[str, str], audit: AuditLog, token: str) -> None:
     r.header("5. Transcript: someone else's is refused, the student's own is accepted with a CGPA review")
-    token = r.login(AARAV, student_pw)
-    if not r.check("5. Aarav signs in with his PRN", token is not None, ""):
-        return
     others = render_transcript(DIYA, "Diya Sharma", "8.50")
     before = audit.count("transcript_prn_mismatch", AARAV)
     status, data, _, _ = r.call("POST", "/api/profiles/me/transcript", token=token, files={"file": ("diya.pdf", others)})
@@ -406,8 +500,8 @@ def beat_5_transcript(r: Run, admin: str, sids: dict[str, str], audit: AuditLog,
     else:
         r.skip("5. the refusal is audited as transcript_prn_mismatch", "audit DB not readable (pass --db)")
 
-    mine = render_transcript(AARAV, "Aarav Mehta", "8.50")  # roster says 8.72, so it is flagged
-    status, data, _, _ = r.call("POST", "/api/profiles/me/transcript", token=token, files={"file": ("aarav.pdf", mine)})
+    # Roster says 8.72, so this one is flagged for review.
+    status, data = upload_transcript(r, token, AARAV, "Aarav Mehta", "8.50")
     r.check("5. his own transcript is accepted (201)", status == 201, f"HTTP {status} {data}")
     if status != 201:
         return
@@ -431,7 +525,7 @@ def beat_5_transcript(r: Run, admin: str, sids: dict[str, str], audit: AuditLog,
     r.check("5. an anonymous caller cannot open it (401)", status == 401, f"HTTP {status}")
 
 
-def beat_6_recruiter(r: Run, acme: str, nimbus: str, sids: dict[str, str], live_ai: bool) -> None:
+def beat_6_recruiter(r: Run, acme: str, sids: dict[str, str], live_ai: bool) -> None:
     r.header("6. Recruiter (Acme): JD search, ranking, score breakdown, role category")
     status, data, _, _ = r.call("POST", "/api/matching/search", token=acme, body={"jd_text": JD, "k": 10})
     r.check("6. Acme's JD search answers 200", status == 200, f"HTTP {status} {data}")
@@ -449,7 +543,7 @@ def beat_6_recruiter(r: Run, acme: str, nimbus: str, sids: dict[str, str], live_
             all(BREAKDOWN_KEYS <= set(row["match"]["components"]) and
                 all({"score", "weight"} <= set(c) for c in row["match"]["components"].values()) for row in results), "")
     r.check("6. the backend-skills student outranks the data-analyst for a backend JD",
-            [x for x in (row["prn"] for row in results) if x in (AARAV, SANA)][0] == AARAV, "")
+            next((x for x in (row["prn"] for row in results) if x in (AARAV, SANA)), None) == AARAV, "")
     r.check("6. the JD reading lists the skills it asked for (Python, Django)",
             {"Python", "Django"} <= set(data["job"]["required_skills"]), f"{data['job']['required_skills']}")
     r.check("6. results hide what companies must not see (no age, DOB, resume CGPA or verification flags)",
@@ -476,7 +570,7 @@ def beat_6_recruiter(r: Run, acme: str, nimbus: str, sids: dict[str, str], live_
         r.skip("6. [live-ai] the model reads the JD and a role category is created", "run with --live-ai (needs Gemma and embeddings)")
 
 
-def beat_7_nimbus(r: Run, acme: str, nimbus: str, sids: dict[str, str], audit: AuditLog) -> None:
+def beat_7_nimbus(r: Run, acme: str, nimbus: str, sids: dict[str, str]) -> None:
     r.header("7. Recruiter (Nimbus): hidden and shortlisted-only students stay out of sight")
     status, data, _, _ = r.call("POST", "/api/matching/search", token=nimbus, body={"jd_text": JD, "k": 10})
     found = prns((data or {}).get("results"))
@@ -530,10 +624,14 @@ def run_public(r: Run, args) -> None:
         status, _, _, _ = r.call("GET", path, accept="*/*")
         r.check(f"P. {path} is a 404 (documents leave only through audited API views)", status == 404, f"HTTP {status}")
 
-    for path in ("/api/auth/demo/personas", "/api/auth/demo/login", "/api/auth/demo/signin"):
-        for method in ("GET", "POST"):
-            status, _, _, _ = r.call(method, path, body={} if method == "POST" else None)
-            r.check(f"P. demo sign-in {method} {path} is a 404", status == 404, f"HTTP {status}")
+    status, _, _, _ = r.call("GET", "/api/auth/demo/personas")
+    r.check("P. GET /api/auth/demo/personas is a 404", status == 404, f"HTTP {status}")
+    for persona in (*PERSONA_KEYS, "root"):
+        status, data, _, _ = r.call("POST", "/api/auth/demo/login", body={"persona": persona})
+        r.check(f"P. POST /api/auth/demo/login as {persona} is a 404 and issues no tokens",
+                status == 404 and "tokens" not in (data or {}), f"HTTP {status}")
+    status, _, _, _ = r.call("POST", "/api/auth/demo/login", body={})
+    r.check("P. POST /api/auth/demo/login with no persona is a 404 too (the route does not exist)", status == 404, f"HTTP {status}")
 
     # Provoke every place a code could be echoed, then scan every body seen.
     r.call("POST", "/api/auth/otp/request", body={"identifier": args.admin_email})
@@ -547,6 +645,11 @@ def run_public(r: Run, args) -> None:
         r.get("/api/auth/me", admin)
     leaked = []
     for path, status, raw in r.bodies:
+        text = raw.decode(errors="replace")
+        # Whole-body scan: a 6-digit code next to the word code or otp, in
+        # JSON, HTML or plain text alike.
+        if OTP_TEXT.search(text):
+            leaked.append(f"{path}:text")
         try:
             parsed = json.loads(raw)
         except ValueError:
@@ -555,6 +658,9 @@ def run_public(r: Run, args) -> None:
             if key.lower() in OTP_KEYS and value not in (None, "", False):
                 leaked.append(f"{path}:{key}")
     r.check("P. no OTP or sign-in code in any response body", not leaked, f"{leaked[:3]}")
+    r.check("P. the scan saw the signup, OTP request, login and me responses",
+            {"/api/auth/signup", "/api/auth/otp/request", "/api/auth/login"} <= {p for p, _, _ in r.bodies}
+            and admin is not None, "the officer could not sign in: is seed_demo loaded?")
     beat_8_no_5xx(r)
 
 
@@ -566,53 +672,74 @@ def run_demo(r: Run, args) -> None:
     if not beat_0_server(r):
         print("Is the server up at", args.base_url, "?")
         return
-    admin = r.login(args.admin_email, args.admin_password)
-    acme = r.login(args.company_a_email, args.company_a_password)
-    nimbus = r.login(args.company_b_email, args.company_b_password)
-    if not r.check("the officer, Acme and Nimbus can sign in (run seed_demo first)", all((admin, acme, nimbus)), ""):
+    accounts = {
+        "the shared officer": (args.admin_email, args.admin_password),
+        "the pilot officer": PILOT_OFFICER,
+        "Acme": (args.company_a_email, args.company_a_password),
+        "Nimbus": (args.company_b_email, args.company_b_password),
+        "Aarav (student)": (AARAV, args.student_password),
+    }
+    tokens = {who: r.login(*creds) for who, creds in accounts.items()}
+    for who, token in tokens.items():
+        r.check(f"{who} can sign in with a password", token is not None, "missing seed? run `seed_demo --with-students`")
+    if not all(tokens.values()):
+        r.check("the seed is loaded (every demo account signs in)", False, "stopping: run `manage.py seed_demo --with-students`")
         return
+    admin, acme, nimbus = tokens["the shared officer"], tokens["Acme"], tokens["Nimbus"]
+    student = tokens["Aarav (student)"]
 
-    beat_1_all_users(r, admin)
+    personas = beat_1b_personas(r)
+    beat_1_all_users(r, {"demo persona": personas.get("officer"), "password": tokens["the pilot officer"]}, student, acme, audit)
     beat_2_outcomes(r, admin, acme)
-    sids = beat_3_profiles(r, admin, acme)
-    if not {AARAV, DIYA, ROHAN, SANA} <= set(sids):
-        print("Run `manage.py seed_demo --with-students` first; stopping.")
+
+    sids = {row["student"]["prn"]: row["student_id"] for row in r.pages("/api/profiles/admin?search=2202009", admin) or []}
+    if not r.check("the four seeded students are on the roster with profiles", {AARAV, DIYA, ROHAN, SANA} <= set(sids), f"{sorted(sids)}"):
         return
+    # Beat 3's verification checks need something to flag: Aarav's transcript
+    # disagrees with the roster, and the resume has to have been read.
+    upload_transcript(r, student, AARAV, "Aarav Mehta", "8.50")
+    r.call("POST", "/api/profiles/me/resume/analyze", token=student)
+    beat_3_profiles(r, admin, acme)
     beat_4_student_detail(r, admin, sids, audit)
-    beat_5_transcript(r, admin, sids, audit, args.student_password)
-    beat_6_recruiter(r, acme, nimbus, sids, args.live_ai)
-    beat_7_nimbus(r, acme, nimbus, sids, audit)
+    beat_5_transcript(r, admin, sids, audit, student)
+    beat_6_recruiter(r, acme, sids, args.live_ai)
+    beat_7_nimbus(r, acme, nimbus, sids)
     beat_8_no_5xx(r)
 
 
-def repeat(times: int) -> int:
-    """E2: run the suite `times` times and require byte-identical output."""
+def child_argv(args) -> list[str]:
+    """The flags for one child run, built from the parsed args (not sys.argv)."""
+    argv = ["--base-url", args.base_url]
+    argv += ["--public"] * args.public + ["--live-ai"] * args.live_ai
+    if args.db:
+        argv += ["--db", args.db]
+    for flag in ("admin_email", "admin_password", "company_a_email", "company_a_password",
+                 "company_b_email", "company_b_password", "student_password"):
+        argv += ["--" + flag.replace("_", "-"), getattr(args, flag)]
+    return argv
+
+
+def repeat(args) -> int:
+    """E2: run the suite `args.repeat` times; every run must pass and match run 1 exactly."""
+    import difflib
     import subprocess
 
-    cleaned, skip = [], False
-    for a in sys.argv[1:]:
-        if skip:
-            skip = False
-        elif a == "--repeat":
-            skip = True
-        elif not a.startswith("--repeat="):
-            cleaned.append(a)
-    outputs = []
-    for n in range(times):
-        done = subprocess.run([sys.executable, __file__, *cleaned], capture_output=True, text=True)
+    outputs, code = [], 0
+    for n in range(args.repeat):
+        done = subprocess.run([sys.executable, __file__, *child_argv(args)], capture_output=True, text=True)
         outputs.append(done.stdout)
         lines = done.stdout.strip().splitlines()
         print(f"run {n + 1}: exit {done.returncode}, {lines[-1] if lines else 'no output'}")
         if done.returncode != 0:
-            print(done.stdout)
-            return 1
-    same = all(o == outputs[0] for o in outputs)
-    print(f"output identical across {times} runs: {'yes' if same else 'NO'}")
-    if not same:
-        import difflib
-
-        print("".join(difflib.unified_diff(outputs[0].splitlines(True), outputs[1].splitlines(True), "run 1", "run 2")))
-    return 0 if same else 1
+            print(done.stdout + done.stderr)
+            code = 1
+    for n, out in enumerate(outputs[1:], start=2):
+        if out != outputs[0]:
+            code = 1
+            print(f"run {n} differs from run 1:")
+            print("".join(difflib.unified_diff(outputs[0].splitlines(True), out.splitlines(True), "run 1", f"run {n}")))
+    print(f"output identical across {args.repeat} runs: {'yes' if code == 0 else 'NO'}")
+    return code
 
 
 def main() -> int:
@@ -633,18 +760,22 @@ def main() -> int:
                    help="run the suite N times in fresh processes and fail unless the output is identical each time")
     args = p.parse_args()
     if args.repeat > 1:
-        return repeat(args.repeat)
+        return repeat(args)
 
     r = Run(args.base_url)
     print(f"e2e_demo: {'public' if args.public else 'demo'} mode" + (", live-ai" if args.live_ai and not args.public else ""))
-    (run_public if args.public else run_demo)(r, args)
+    try:
+        (run_public if args.public else run_demo)(r, args)
+    except ServerDown as exc:
+        r.check("the server answers", False, f"{exc}. Is it running at {args.base_url}?")
 
     passed = sum(1 for v, _ in r.results if v == "PASS")
     skipped = sum(1 for v, _ in r.results if v == "SKIP")
     failed = sum(1 for v, _ in r.results if v == "FAIL")
     total = passed + failed
     print(f"\n{passed}/{total} checks passed" + (f", {skipped} skipped" if skipped else ""))
-    return 0 if failed == 0 else 1
+    # No checks, or none passing, is a failure: an empty run proves nothing.
+    return 0 if failed == 0 and passed > 0 and total > 0 else 1
 
 
 if __name__ == "__main__":
