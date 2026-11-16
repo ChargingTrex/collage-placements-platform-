@@ -103,6 +103,7 @@ class OpportunityViewSet(
             "reject": [IsPlacementAdmin],
             "close": [IsCompanyOrAdmin],
             "feed": [IsStudent],
+            "suggestions": [IsStudent],
             "apply": [IsStudent],
             "screen": [IsCompanyOrAdmin],
             "applicants_export": [IsCompanyOrAdmin],
@@ -214,15 +215,13 @@ class OpportunityViewSet(
 
     # --- the student side ---------------------------------------------------
 
-    @action(detail=False, methods=["get"])
-    def feed(self, request):
-        """Open postings, best match first. Scores come from the shared cache."""
-        profile = get_or_create_profile(request.user)
-        postings = self.filter_queryset(
-            self.get_queryset().filter(
-                status=Opportunity.Status.OPEN, deadline__gte=datetime.date.today()
-            )
+    def _open_postings(self):
+        return self.get_queryset().filter(
+            status=Opportunity.Status.OPEN, deadline__gte=datetime.date.today()
         )
+
+    def _scored_rows(self, request, profile, postings) -> list[dict]:
+        """One feed row per posting; every score comes from the shared cache."""
         applications = {
             a.opportunity_id: a.status for a in Application.objects.filter(profile=profile)
         }
@@ -245,8 +244,48 @@ class OpportunityViewSet(
             )
             rows.append(row)
         rows.sort(key=lambda r: (-r["score"], r["deadline"], r["title"]))
-        page = self.paginate_queryset(rows)
+        return rows
+
+    @action(detail=False, methods=["get"])
+    def feed(self, request):
+        """Open postings, best match first. Scores come from the shared cache."""
+        profile = get_or_create_profile(request.user)
+        postings = self.filter_queryset(self._open_postings())
+        page = self.paginate_queryset(self._scored_rows(request, profile, postings))
         return self.get_paginated_response(page)
+
+    @action(detail=False, methods=["get"], throttle_classes=[MatchingThrottle])
+    def suggestions(self, request):
+        """
+        Open postings that clear the bar, best first, capped. The bar is the
+        posting's own `similarity_threshold`, else `SUGGESTIONS["MIN_SCORE"]`.
+        A guide to where to look, not a prediction of anything.
+        """
+        unknown = sorted(set(request.query_params) - {"format"})
+        if unknown:
+            raise ValidationError(
+                {p: "Unrecognised query parameter. This endpoint accepts none." for p in unknown}
+            )
+        profile = get_or_create_profile(request.user)
+        postings = list(self._open_postings())
+        config = settings.SUGGESTIONS
+        # `is not None`, not `or`: a posting's own threshold of 0 is a real bar.
+        thresholds = {
+            str(p.id): p.similarity_threshold if p.similarity_threshold is not None else config["MIN_SCORE"]
+            for p in postings
+        }
+        rows = [
+            r for r in self._scored_rows(request, profile, postings)
+            if r["score"] >= thresholds[str(r["id"])]
+        ]
+        reason = None
+        if not postings:
+            reason = "no_open_postings"
+        elif not rows:
+            reason = "none_match"
+        return Response(
+            {"results": rows[: config["MAX_RESULTS"]], "open_count": len(postings), "reason": reason}
+        )
 
     @action(detail=True, methods=["post"])
     def apply(self, request, pk=None):
