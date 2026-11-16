@@ -708,21 +708,29 @@ def _dates_on_page(text: str) -> set[str]:
     return found
 
 
-_PHONE_LIKE = re.compile(r"\+?\d[\d\s\-().]{5,}\d")
+#: Between two digits of one written number: at most one of - . ) ( or a
+#: single space, never a line break or a run of spaces.
+_PHONE_GAP = r"(?:\)?[ \-.]?\(?)"
+#: A country or trunk prefix written before a 10-digit number.
+_PHONE_PREFIX = r"(?:\(?\+?\d{1,4}\)?[ \-]?)"
 
 
 def _phone_on_page(phone: str, text: str) -> bool:
-    """The number's digits are written as one number, give or take a country code."""
+    """
+    The number's digits are written as one standalone number, give or take
+    a country code. The digits are matched themselves, with only the
+    separators a phone is written with between them, so a number standing
+    next to another ("9876543210 2021 - 2025") is still found, and one that
+    is the tail of a longer run of digits is not.
+    """
     digits = re.sub(r"\D", "", phone or "")
     if len(digits) < 7:
         return False
-    for match in _PHONE_LIKE.finditer(text):
-        written = re.sub(r"\D", "", match.group(0))
-        if written == digits or (len(digits) >= 10 and len(written) >= 10 and (
-            written.endswith(digits[-10:]) and digits.endswith(written[-10:])
-        )):
-            return True
-    return False
+    body = digits[-10:] if len(digits) >= 10 else digits
+    written = _PHONE_GAP.join(re.escape(d) for d in body)
+    start = r"\(?" if len(digits) < 10 else rf"(?:{_PHONE_PREFIX}|\(?)"
+    pattern = rf"(?<![\d+]){start}{written}(?!\d)"
+    return re.search(pattern, text) is not None
 
 
 def _email_on_page(email: str, text: str) -> bool:

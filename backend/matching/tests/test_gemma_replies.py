@@ -106,6 +106,23 @@ class TestStatedFactsMustBeOnThePage:
     def test_a_phone_is_compared_by_its_digits(self, phone, written, kept):
         assert llm.drop_unstated_facts({"phones": [phone]}, written)["phones"] == ([phone] if kept else [])
 
+    @pytest.mark.parametrize(
+        "written",
+        [
+            "Aarav\n9876543210\n2019-2023 BTech",
+            "Phone: 9876543210 2021 - 2025 B.Tech",
+            "9876543210 8.5",
+            "9876543210 9123456780",
+            "9123456780 9876543210",
+            "Mobile: (+91) 98765 43210",
+            "Tel 0091-9876543210",
+            "call 09876543210",
+        ],
+    )
+    def test_a_phone_next_to_another_number_is_still_found(self, written):
+        """QA-2: the old candidate regex ran across spaces into the next number."""
+        assert llm.drop_unstated_facts({"phones": ["9876543210"]}, written)["phones"] == ["9876543210"]
+
     def test_an_age_must_be_written_as_a_number_of_its_own(self):
         assert llm.drop_unstated_facts({"age": 21}, "Age: 21")["age"] == 21
         assert llm.drop_unstated_facts({"age": 21}, "Batch of 2021, CGPA 8.21")["age"] is None
