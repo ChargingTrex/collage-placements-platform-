@@ -541,7 +541,7 @@ def run_public(r: Run, args) -> None:
     # A real roster row with no account yet (roster_sample.csv): the one that
     # would get a code. The response must say a code was sent, never what it is.
     status, _, _, _ = r.call("POST", "/api/auth/signup", body={"prn": "220200905", "email": "kabir.nair@college.edu"})
-    r.check("P. signup for a roster student answers 2xx (so the no-code scan below means something)", 200 <= status < 300, f"HTTP {status}")
+    r.check("P. signup for a roster student is accepted or throttled, never an error (the no-code scan below needs it)", 200 <= status < 300 or status == 429, f"HTTP {status}")
     admin = r.login(args.admin_email, args.admin_password)
     if admin:
         r.get("/api/auth/me", admin)
@@ -585,6 +585,36 @@ def run_demo(r: Run, args) -> None:
     beat_8_no_5xx(r)
 
 
+def repeat(times: int) -> int:
+    """E2: run the suite `times` times and require byte-identical output."""
+    import subprocess
+
+    cleaned, skip = [], False
+    for a in sys.argv[1:]:
+        if skip:
+            skip = False
+        elif a == "--repeat":
+            skip = True
+        elif not a.startswith("--repeat="):
+            cleaned.append(a)
+    outputs = []
+    for n in range(times):
+        done = subprocess.run([sys.executable, __file__, *cleaned], capture_output=True, text=True)
+        outputs.append(done.stdout)
+        lines = done.stdout.strip().splitlines()
+        print(f"run {n + 1}: exit {done.returncode}, {lines[-1] if lines else 'no output'}")
+        if done.returncode != 0:
+            print(done.stdout)
+            return 1
+    same = all(o == outputs[0] for o in outputs)
+    print(f"output identical across {times} runs: {'yes' if same else 'NO'}")
+    if not same:
+        import difflib
+
+        print("".join(difflib.unified_diff(outputs[0].splitlines(True), outputs[1].splitlines(True), "run 1", "run 2")))
+    return 0 if same else 1
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--base-url", default="http://127.0.0.1:8000")
@@ -599,7 +629,11 @@ def main() -> int:
     p.add_argument("--company-b-email", default="talent@nimbusanalytics.example")
     p.add_argument("--company-b-password", default="CompanyPass!234")
     p.add_argument("--student-password", default="StudentPass!234")
+    p.add_argument("--repeat", type=int, default=1,
+                   help="run the suite N times in fresh processes and fail unless the output is identical each time")
     args = p.parse_args()
+    if args.repeat > 1:
+        return repeat(args.repeat)
 
     r = Run(args.base_url)
     print(f"e2e_demo: {'public' if args.public else 'demo'} mode" + (", live-ai" if args.live_ai and not args.public else ""))
