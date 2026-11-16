@@ -264,9 +264,14 @@ Bulk Screening Splits Applicants Three Ways
             Dictionary Should Contain Key    ${row}    ${key}
         END
     END
-    ${strict}=    Api    POST    /api/opportunities/${OPP_ID}/screen    ${acme}    json=${{ {"threshold": 101} }}
+    ${out_of_range}=    Api    POST    /api/opportunities/${OPP_ID}/screen    ${acme}    json=${{ {"threshold": 101} }}
+    Status Is    ${out_of_range}    400    # the threshold is on the 0-100 scale
+    ${strict}=    Api    POST    /api/opportunities/${OPP_ID}/screen    ${acme}    json=${{ {"threshold": 100} }}
     Status Is    ${strict}    200
-    Should Be Empty    ${strict.json()}[shortlisted]    msg=nobody can reach a threshold of 101
+    FOR    ${row}    IN    @{strict.json()}[shortlisted]
+        Should Be True    ${row}[score] >= 100    msg=a row below the cut was shortlisted
+    END
+    Should Not Be Empty    ${strict.json()}[below_threshold]    msg=the cut at 100 moved nobody below it
     ${filtered}=    Api    POST    /api/opportunities/${OPP_ID}/screen    ${acme}    json=${{ {"threshold": 0, "min_experience_years": 50} }}
     Status Is    ${filtered}    200
     Should Be Empty    ${filtered.json()}[shortlisted]    msg=nobody has 50 years of experience
