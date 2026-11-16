@@ -1,0 +1,38 @@
+{
+ "key": "frontend_intern",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 73.6,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 73.6,
+   "content": "{\n  \"full_name\": \"Kabir Nair\",\n  \"emails\": [\n    \"kabir.nair@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"BCA\",\n      \"level\": \"UG\",\n      \"field\": null,\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2027\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Front-end Intern\",\n      \"organization\": \"Bright Studio\",\n      \"kind\": \"internship\",\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Built responsive landing pages in React and Tailwind CSS. Translated Figma designs into reusable components.\"\n    }\n  ],\n  \"skills\": [\n    \"React\",\n    \"TypeScript\",\n    \"HTML\",\n    \"CSS\",\n    \"Tailwind\",\n    \"Figma\",\n    \"accessibility\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-683",
+    "object": "chat.completion",
+    "created": 1794839253,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Kabir Nair\",\n  \"emails\": [\n    \"kabir.nair@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"BCA\",\n      \"level\": \"UG\",\n      \"field\": null,\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2027\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Front-end Intern\",\n      \"organization\": \"Bright Studio\",\n      \"kind\": \"internship\",\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Built responsive landing pages in React and Tailwind CSS. Translated Figma designs into reusable components.\"\n    }\n  ],\n  \"skills\": [\n    \"React\",\n    \"TypeScript\",\n    \"HTML\",\n    \"CSS\",\n    \"Tailwind\",\n    \"Figma\",\n    \"accessibility\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 563,
+     "prompt_tokens_details": {
+      "cached_tokens": 97
+     },
+     "completion_tokens": 296,
+     "total_tokens": 859
+    }
+   }
+  }
+ ]
+}

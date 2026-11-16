@@ -1,0 +1,38 @@
+{
+ "key": "designer_short_dates",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 218.3,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 218.3,
+   "content": "{\n  \"full_name\": \"Tanvi Joshi\",\n  \"emails\": [\n    \"tanvi.joshi@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"Bachelor of Design\",\n      \"level\": \"UG\",\n      \"field\": \"Communication Design\",\n      \"institution\": null,\n      \"start\": \"2026\",\n      \"end\": null,\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Graphic Design Intern\",\n      \"organization\": \"Pixel Forge\",\n      \"kind\": \"internship\",\n      \"start\": \"2023-01\",\n      \"end\": \"2023-06\",\n      \"is_current\": false,\n      \"summary\": null\n    },\n    {\n      \"role\": \"Visual Designer\",\n      \"organization\": \"Lumen Media\",\n      \"kind\": null,\n      \"start\": \"2023-08\",\n      \"end\": \"2024-03\",\n      \"is_current\": false,\n      \"summary\": null\n    }\n  ],\n  \"skills\": [\n    \"Illustrator\",\n    \"Photoshop\",\n    \"typography\",\n    \"brand identity\",\n    \"packaging\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-667",
+    "object": "chat.completion",
+    "created": 1794840416,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Tanvi Joshi\",\n  \"emails\": [\n    \"tanvi.joshi@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"Bachelor of Design\",\n      \"level\": \"UG\",\n      \"field\": \"Communication Design\",\n      \"institution\": null,\n      \"start\": \"2026\",\n      \"end\": null,\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Graphic Design Intern\",\n      \"organization\": \"Pixel Forge\",\n      \"kind\": \"internship\",\n      \"start\": \"2023-01\",\n      \"end\": \"2023-06\",\n      \"is_current\": false,\n      \"summary\": null\n    },\n    {\n      \"role\": \"Visual Designer\",\n      \"organization\": \"Lumen Media\",\n      \"kind\": null,\n      \"start\": \"2023-08\",\n      \"end\": \"2024-03\",\n      \"is_current\": false,\n      \"summary\": null\n    }\n  ],\n  \"skills\": [\n    \"Illustrator\",\n    \"Photoshop\",\n    \"typography\",\n    \"brand identity\",\n    \"packaging\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 554,
+     "prompt_tokens_details": {
+      "cached_tokens": 95
+     },
+     "completion_tokens": 361,
+     "total_tokens": 915
+    }
+   }
+  }
+ ]
+}

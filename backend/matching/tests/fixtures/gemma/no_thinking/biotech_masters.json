@@ -1,0 +1,38 @@
+{
+ "key": "biotech_masters",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 178.7,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 178.6,
+   "content": "{\n  \"full_name\": \"Nandini Rao\",\n  \"emails\": [\n    \"nandini.rao@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": 8.6,\n  \"education\": [\n    {\n      \"degree\": \"M.Sc in Biotechnology\",\n      \"level\": \"Masters\",\n      \"field\": \"Biotechnology\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": 8.6\n    },\n    {\n      \"degree\": \"B.Sc in Microbiology\",\n      \"level\": \"UG\",\n      \"field\": \"Microbiology\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2024\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Research Intern\",\n      \"organization\": \"GenePath Labs\",\n      \"kind\": \"internship\",\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Purified recombinant proteins and ran SDS-PAGE and western blots.\"\n    }\n  ],\n  \"skills\": [\n    \"Cell culture\",\n    \"PCR\",\n    \"SDS-PAGE\",\n    \"chromatography\",\n    \"ELISA\",\n    \"lab safety\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-532",
+    "object": "chat.completion",
+    "created": 1794840198,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Nandini Rao\",\n  \"emails\": [\n    \"nandini.rao@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": 8.6,\n  \"education\": [\n    {\n      \"degree\": \"M.Sc in Biotechnology\",\n      \"level\": \"Masters\",\n      \"field\": \"Biotechnology\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": 8.6\n    },\n    {\n      \"degree\": \"B.Sc in Microbiology\",\n      \"level\": \"UG\",\n      \"field\": \"Microbiology\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2024\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Research Intern\",\n      \"organization\": \"GenePath Labs\",\n      \"kind\": \"internship\",\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Purified recombinant proteins and ran SDS-PAGE and western blots.\"\n    }\n  ],\n  \"skills\": [\n    \"Cell culture\",\n    \"PCR\",\n    \"SDS-PAGE\",\n    \"chromatography\",\n    \"ELISA\",\n    \"lab safety\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 571,
+     "prompt_tokens_details": {
+      "cached_tokens": 97
+     },
+     "completion_tokens": 370,
+     "total_tokens": 941
+    }
+   }
+  }
+ ]
+}

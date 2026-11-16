@@ -1,0 +1,40 @@
+{
+ "key": "backend_engineer",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "",
+ "note": "Recorded 2026-11-16 with thinking on (no reasoning_effort): 185.6 s, 1027 completion tokens.",
+ "total_seconds": 185.6,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 185.6,
+   "content": "{\n  \"full_name\": \"Aarav Mehta\",\n  \"emails\": [\n    \"aarav.mehta@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.Tech\",\n      \"level\": \"UG\",\n      \"field\": \"Computer Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Backend Developer\",\n      \"organization\": \"Loadstar Logistics\",\n      \"kind\": \"full_time\",\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Built Django REST Framework APIs backing a fleet tracking product. Designed PostgreSQL schemas and tuned slow queries with EXPLAIN ANALYZE. Moved nightly reporting onto Celery workers running in Docker.\"\n    }\n  ],\n  \"skills\": [\n    \"Python\",\n    \"Django\",\n    \"Django REST Framework\",\n    \"PostgreSQL\",\n    \"SQL\",\n    \"Celery\",\n    \"Docker\",\n    \"Git\",\n    \"pytest\",\n    \"continuous integration\",\n    \"AWS\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-615",
+    "object": "chat.completion",
+    "created": 1794808852,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Aarav Mehta\",\n  \"emails\": [\n    \"aarav.mehta@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.Tech\",\n      \"level\": \"UG\",\n      \"field\": \"Computer Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Backend Developer\",\n      \"organization\": \"Loadstar Logistics\",\n      \"kind\": \"full_time\",\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Built Django REST Framework APIs backing a fleet tracking product. Designed PostgreSQL schemas and tuned slow queries with EXPLAIN ANALYZE. Moved nightly reporting onto Celery workers running in Docker.\"\n    }\n  ],\n  \"skills\": [\n    \"Python\",\n    \"Django\",\n    \"Django REST Framework\",\n    \"PostgreSQL\",\n    \"SQL\",\n    \"Celery\",\n    \"Docker\",\n    \"Git\",\n    \"pytest\",\n    \"continuous integration\",\n    \"AWS\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+       "reasoning": "The user wants me to extract specific facts from the provided resume text and format them into a single JSON object.\n\nI need to map the resume content to the required JSON structure.\n\n**Resume Analysis:**\n1.  **Name:** Aarav Mehta\n2.  **Email:** aarav.mehta@college.edu\n3.  **Phone:** Not provided.\n4.  **Age/DOB:** Not provided.\n5.  **CGPA:** Not provided.\n6.  **Education:**\n    *   Degree: B.Tech in Computer Engineering\n    *   Level: UG (Bachelor's)\n    *   Field: Computer Engineering\n    *   Institution: Not provided\n    *   Start/End: Not provided (only \"2026\" is listed, likely graduation year)\n    *   CGPA: Not provided\n7.  **Experience:**\n    *   Role: Backend Developer\n    *   Organization: Loadstar Logistics\n    *   Kind: Full-time (Implied by \"professional experience\" and role title, but I will stick to what is explicitly stated or strongly implied. Since it's a job description, I'll use full_time.)\n    *   Start/End: Not provided\n    *   Is Current: Not stated (assuming not current unless specified)\n    *   Summary: Built Django REST Framework APIs backing a fleet tracking product. Designed PostgreSQL schemas and tuned slow queries with EXPLAIN ANALYZE. Moved nightly reporting onto Celery workers running in Docker.\n8.  **Skills:** Python, Django, Django REST Framework, PostgreSQL, SQL, Celery, Docker, Git, pytest, continuous integration, AWS\n9.  **Projects:** None listed.\n10. **Certifications:** None listed.\n11. **Links:** None listed.\n\n**Constraint Checklist & Refinement:**\n*   `full_name`: Aarav Mehta\n*   `emails`: [\"aarav.mehta@college.edu\"]\n*   `phones`: []\n*   `age`: null\n*   `date_of_birth`: null\n*   `cgpa`: null\n*   `education`: [{\"degree\": \"B.Tech\", \"level\": \"UG\", \"field\": \"Computer Engineering\", \"institution\": null, \"start\": null, \"end\": \"2026\", \"cgpa\": null}] (Using 2026 as the end year)\n*   `experience`: [{\"role\": \"Backend Developer\", \"organization\": \"Loadstar Logistics\", \"kind\": \"full_time\", \"start\": null, \"end\": null, \"is_current\": false, \"summary\": \"Built Django REST Framework APIs backing a fleet tracking product. Designed PostgreSQL schemas and tuned slow queries with EXPLAIN ANALYZE. Moved nightly reporting onto Celery workers running in Docker.\"}]\n*   `skills`: [\"Python\", \"Django\", \"Django REST Framework\", \"PostgreSQL\", \"SQL\", \"Celery\", \"Docker\", \"Git\", \"pytest\", \"continuous integration\", \"AWS\"]\n*   `projects`: []\n*   `certifications`: []\n*   `links`: []\n\nConstructing the final JSON object."
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 613,
+     "prompt_tokens_details": {
+      "cached_tokens": 608
+     },
+     "completion_tokens": 1027,
+     "total_tokens": 1640
+    }
+   }
+  }
+ ]
+}

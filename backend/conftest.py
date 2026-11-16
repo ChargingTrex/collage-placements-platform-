@@ -28,6 +28,19 @@ def _isolated_media(tmp_path, settings):
 
 
 @pytest.fixture(autouse=True)
+def _offline_ai(settings):
+    """
+    Tests never reach a real model or a real MongoDB, whatever .env says.
+
+    A demo `.env` turns the LLM on and may set MONGO_URI; without this the
+    suite would call Ollama (slow, nondeterministic) or a live database.
+    Tests that exercise those paths set them explicitly after this runs.
+    """
+    settings.LLM = {**settings.LLM, "ENABLED": False}
+    settings.VECTOR_STORE = {**settings.VECTOR_STORE, "MONGO_URI": ""}
+
+
+@pytest.fixture(autouse=True)
 def _reset_throttles():
     """DRF throttle history is process-global; leaking it across tests makes
     unrelated tests fail with 429 depending on run order."""

@@ -1,0 +1,38 @@
+{
+ "key": "mechanical_designer",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 71.4,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 71.3,
+   "content": "{\n  \"full_name\": \"Arjun Deshmukh\",\n  \"emails\": [\n    \"arjun.deshmukh@college.edu\"\n  ],\n  \"phones\": [\n    \"220200909\"\n  ],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.E.\",\n      \"level\": \"UG\",\n      \"field\": \"Mechanical Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Design Engineer\",\n      \"organization\": \"Pinnacle Auto Components\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Produced 3D models and manufacturing drawings in SolidWorks. Ran thermal and stress simulations on bracket assemblies. Applied GD&T to drawings and led design reviews with suppliers.\"\n    }\n  ],\n  \"skills\": [\n    \"SolidWorks\",\n    \"AutoCAD\",\n    \"CATIA\",\n    \"GD&T\",\n    \"FEA\",\n    \"sheet metal design\",\n    \"ANSYS\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-379",
+    "object": "chat.completion",
+    "created": 1794839324,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Arjun Deshmukh\",\n  \"emails\": [\n    \"arjun.deshmukh@college.edu\"\n  ],\n  \"phones\": [\n    \"220200909\"\n  ],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.E.\",\n      \"level\": \"UG\",\n      \"field\": \"Mechanical Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Design Engineer\",\n      \"organization\": \"Pinnacle Auto Components\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Produced 3D models and manufacturing drawings in SolidWorks. Ran thermal and stress simulations on bracket assemblies. Applied GD&T to drawings and led design reviews with suppliers.\"\n    }\n  ],\n  \"skills\": [\n    \"SolidWorks\",\n    \"AutoCAD\",\n    \"CATIA\",\n    \"GD&T\",\n    \"FEA\",\n    \"sheet metal design\",\n    \"ANSYS\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 597,
+     "prompt_tokens_details": {
+      "cached_tokens": 96
+     },
+     "completion_tokens": 341,
+     "total_tokens": 938
+    }
+   }
+  }
+ ]
+}

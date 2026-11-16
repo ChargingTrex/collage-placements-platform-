@@ -1,0 +1,38 @@
+{
+ "key": "marketing_executive",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 70.0,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 70.0,
+   "content": "{\n  \"full_name\": \"Ishita Banerjee\",\n  \"emails\": [\n    \"ishita.banerjee@college.edu\"\n  ],\n  \"phones\": [\n    null\n  ],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"BBA\",\n      \"level\": \"UG\",\n      \"field\": \"Marketing\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Marketing Executive\",\n      \"organization\": \"Hearth & Co.\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Planned editorial calendars and wrote long-form blog content. Ran paid social campaigns and reported on channel performance.\"\n    }\n  ],\n  \"skills\": [\n    \"Content marketing\",\n    \"SEO\",\n    \"copywriting\",\n    \"Google Analytics\",\n    \"Canva\",\n    \"email campaigns\",\n    \"social media strategy\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-980",
+    "object": "chat.completion",
+    "created": 1794839394,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Ishita Banerjee\",\n  \"emails\": [\n    \"ishita.banerjee@college.edu\"\n  ],\n  \"phones\": [\n    null\n  ],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"BBA\",\n      \"level\": \"UG\",\n      \"field\": \"Marketing\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Marketing Executive\",\n      \"organization\": \"Hearth & Co.\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Planned editorial calendars and wrote long-form blog content. Ran paid social campaigns and reported on channel performance.\"\n    }\n  ],\n  \"skills\": [\n    \"Content marketing\",\n    \"SEO\",\n    \"copywriting\",\n    \"Google Analytics\",\n    \"Canva\",\n    \"email campaigns\",\n    \"social media strategy\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 569,
+     "prompt_tokens_details": {
+      "cached_tokens": 95
+     },
+     "completion_tokens": 310,
+     "total_tokens": 879
+    }
+   }
+  }
+ ]
+}
