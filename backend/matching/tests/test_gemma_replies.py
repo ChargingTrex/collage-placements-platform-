@@ -149,6 +149,22 @@ class TestStatedFactsMustBeOnThePage:
     def test_the_models_own_prefix_must_be_one_of_them_too(self, phone, written, kept):
         assert llm.drop_unstated_facts({"phones": [phone]}, written)["phones"] == ([phone] if kept else [])
 
+    @pytest.mark.parametrize(
+        "email, written, kept",
+        [
+            ("john@gmail.com", "Email: bigjohn@gmail.com", False),
+            ("a@b.com", "aa@b.com.au", False),
+            ("a@b.com", "x.a@b.com", False),
+            ("a@b.com", "a@b.com-mail.net", False),
+            ("john@gmail.com", "Email: John@Gmail.com.", True),
+            ("john@gmail.com", "<john@gmail.com>", True),
+            ("mailto:john@gmail.com", "john@gmail.com | 98765", True),
+        ],
+    )
+    def test_an_email_must_be_written_whole(self, email, written, kept):
+        """QA-2: a substring check kept john@gmail.com for bigjohn@gmail.com."""
+        assert llm.drop_unstated_facts({"emails": [email]}, written)["emails"] == ([email] if kept else [])
+
     def test_an_age_must_be_written_as_a_number_of_its_own(self):
         assert llm.drop_unstated_facts({"age": 21}, "Age: 21")["age"] == 21
         assert llm.drop_unstated_facts({"age": 21}, "Batch of 2021, CGPA 8.21")["age"] is None

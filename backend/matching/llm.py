@@ -742,8 +742,16 @@ def _phone_on_page(phone: str, text: str) -> bool:
 
 
 def _email_on_page(email: str, text: str) -> bool:
+    """
+    The address is written whole, case aside: not as the tail of a longer
+    local part ("bigjohn@") nor the head of a longer domain (".com.au").
+    A sentence's full stop after it is fine.
+    """
     email = (email or "").strip().lower().removeprefix("mailto:")
-    return bool(email) and email in text.lower()
+    if not email:
+        return False
+    pattern = rf"(?<![\w.+-]){re.escape(email)}(?!\.?[\w-])"
+    return re.search(pattern, text, re.IGNORECASE) is not None
 
 
 def _age_on_page(age: int, text: str) -> bool:
