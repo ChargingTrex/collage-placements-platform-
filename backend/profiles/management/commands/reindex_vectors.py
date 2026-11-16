@@ -1,7 +1,7 @@
 """
 Re-embed analysed profiles into the vector store.
 
-    python manage.py reindex_vectors                # every analysed profile
+    python manage.py reindex_vectors                # every analysed profile; drops other models' vectors
     python manage.py reindex_vectors --dirty-only   # form changed, or a new EMBED_MODEL
     python manage.py reindex_vectors --prn 220200921
 
@@ -14,6 +14,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 
 from matching.embeddings import get_embedder
+from matching.vectorstore import get_vector_store
 from profiles.analysis import index_profile
 from profiles.models import ResumeAnalysis
 
@@ -55,4 +56,12 @@ class Command(BaseCommand):
             else:
                 failed += 1
                 self.stderr.write(f"{analysis.profile.prn}: embedding failed; left marked for reindex.")
-        self.stdout.write(self.style.SUCCESS(f"Reindexed {done}; {failed} failed."))
+        summary = f"Reindexed {done}; {failed} failed."
+        if not prn and not dirty_only and not failed:
+            # A full run is the switch to this model: a vector another model
+            # made shares no space with these, and nothing would replace one
+            # whose profile is no longer analysed. Only after every embedding
+            # worked: a mistyped EMBED_MODEL must not empty the store.
+            removed = get_vector_store().delete_other_models(embedder.model)
+            summary += f" removed {removed} vector(s) from another model."
+        self.stdout.write(self.style.SUCCESS(summary))

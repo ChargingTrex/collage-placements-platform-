@@ -10,6 +10,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 import os
 
@@ -247,8 +248,24 @@ VECTOR_STORE = {
 # close, by embedding cosine, to a canonical skill becomes a *pending* alias
 # suggestion for an admin. Never merged automatically. The scale is the
 # embedding model's, so retune it when EMBED_MODEL changes.
+#
+# Measured on nomic-embed-text (2026-11-16, SMOKE_TESTS.md V5): 24 real
+# aliases a resume might write ("Postgres DB", "Tensorflow 2") and 44 names
+# that are not aliases ("SQL Server", "Angular momentum", "Embedded C"),
+# each against its nearest canonical skill:
+#
+#     threshold   right suggestions (of 24)   wrong suggestions
+#     0.70        17                          6
+#     0.74        16                          3
+#     0.78        14                          1   <- chosen
+#     0.80        11                          1
+#     0.85         5                          1   (the old provisional value)
+#
+# The one wrong suggestion left is "SQL Server" -> SQL (0.866); short names
+# with a version or suffix ("ReactJS 18" 0.566, "Golang 1.21" 0.549) stay
+# below any usable threshold. A suggestion is only pending, for an admin.
 SKILL_GRAPH = {
-    "ALIAS_SUGGESTION_THRESHOLD": float(os.getenv("SKILL_ALIAS_SUGGESTION_THRESHOLD", 0.85)),
+    "ALIAS_SUGGESTION_THRESHOLD": float(os.getenv("SKILL_ALIAS_SUGGESTION_THRESHOLD", 0.78)),
 }
 
 # `POST /api/profiles/me/resume/analyze` runs inside the request, so the
@@ -276,32 +293,103 @@ RESUME_ANALYSIS = {
 # spaCy's averaged word vectors put even unrelated English near 0.8, so its
 # floor sits at the least relevant sample; TF-IDF shares almost no terms
 # with an unrelated resume, so its floor is 0. Each ceiling sits just above
-# the best sample. The embedding constants are PROVISIONAL, typical
-# nomic-embed-text cosines (unrelated ~0.4, a close match ~0.85), until the
-# live run (plan §5.4) measures the samples. Retune all of them when the
-# model changes.
+# the best sample. Retune all of them when the model changes.
+#
+# nomic-embed-text was measured the same way (2026-11-16, SMOKE_TESTS.md V5),
+# on all ten samples, and on the stored profile documents (form + resume
+# text, what search actually scores) of the five Phase 2 students:
+#
+#     sample                  raw text   profile document
+#     backend_engineer *      0.836      0.876
+#     data_engineer *         0.733      0.714
+#     frontend_intern         0.630      0.628
+#     mechanical_designer     0.565      0.606
+#     biotech_masters         0.551
+#     electronics_dated       0.544
+#     civil_fresher           0.537
+#     designer_short_dates    0.531
+#     operations_multi_job    0.530
+#     marketing_executive     0.509      0.623 (form says Python, Java)
+#
+# nomic puts unrelated English near 0.5, so the floor is the least relevant
+# sample (0.50); the ceiling sits just above the best profile (0.88).
 MATCH_SCORE = {
     "WEIGHTS": {"semantic": 0.45, "skills": 0.35, "experience": 0.10, "education": 0.10},
     "CALIBRATION": {
-        "embedding": {"FLOOR": 0.40, "CEILING": 0.85},
+        "embedding": {
+            "FLOOR": float(os.getenv("MATCH_EMBEDDING_FLOOR", 0.50)),
+            "CEILING": float(os.getenv("MATCH_EMBEDDING_CEILING", 0.88)),
+        },
         "spacy": {"FLOOR": 0.80, "CEILING": 0.97},
         "tfidf": {"FLOOR": 0.00, "CEILING": 0.25},
     },
     # With no embedder, /api/matching/search scores visible profiles one by
     # one on the similarity backend; this caps how many.
     "FALLBACK_MAX_PROFILES": int(os.getenv("MATCH_FALLBACK_MAX_PROFILES", 500)),
+    # Inside a live JD search, the chat model's reading of a JD it has not
+    # read before gets only this long (the embedding goes first, on the full
+    # analysis budget). A CPU model takes a minute, so a miss falls back to
+    # the text reading at once and the search still ranks on vectors. Read
+    # demo JDs ahead with `manage.py read_jd`: a cached reading costs nothing.
+    "JD_READING_BUDGET_SECONDS": float(os.getenv("JD_READING_BUDGET_SECONDS", 3)),
 }
+
+# --- Cache ------------------------------------------------------------------
+# What the cache holds: JD readings (a day), the "this JD fed a category"
+# markers, and the API throttle counters.
+#   locmem (default)  per process: lost on restart, not shared by workers
+#   file              FileBasedCache at CACHE_LOCATION: survives restarts and
+#                     is shared by every gunicorn worker on the machine, so a
+#                     JD pre-read with `manage.py read_jd` is a hit for all
+CACHE_BACKEND = os.getenv("CACHE_BACKEND", "locmem").strip().lower()
+if CACHE_BACKEND == "locmem":
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+elif CACHE_BACKEND == "file":
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+            "LOCATION": os.getenv("CACHE_LOCATION", str(BASE_DIR / ".cache")),
+            "OPTIONS": {"MAX_ENTRIES": 10_000},
+        }
+    }
+else:
+    raise ImproperlyConfigured(f"Unknown CACHE_BACKEND '{CACHE_BACKEND}'. Use locmem or file.")
 
 # Role categories learnt from recruiters' JDs (matching/categories.py).
 # MERGE_THRESHOLD is a raw embedding cosine between a JD and a same-titled
 # category's centroid: below it the JD starts a variant for an admin to
-# review. PROVISIONAL for nomic-embed-text, like MATCH_SCORE's embedding
-# constants. A profile gets at most MAX_PER_PROFILE categories, each with
-# a fit (CENTROID_WEIGHT x calibrated centroid cosine + the rest x weighted
+# review. A profile gets at most MAX_PER_PROFILE categories, each with a
+# fit (CENTROID_WEIGHT x calibrated centroid cosine + the rest x weighted
 # skill overlap) of at least MIN_FIT.
+#
+# Both measured on nomic-embed-text (2026-11-16, SMOKE_TESTS.md V5) with 18
+# synthetic JDs over 9 roles, including same-titled JDs for different work
+# ("Software Engineer": backend, Android, firmware; "Analyst": data, finance).
+#
+# MERGE_THRESHOLD only judges JDs that share a title or role name:
+#
+#     pair                                     cosine
+#     same role, JD vs JD                      0.701 - 0.891
+#     same title, different work, JD vs JD     0.665 - 0.728
+#     JD vs its own role's centroid (others)   >= 0.788
+#     JD vs any other role's centroid          <= 0.771
+#
+# Single JDs overlap, so no value is clean. 0.75 splits every different-work
+# pair (margin 0.022) and splits 7 of 20 same-role pairs (different stacks:
+# Java vs Python backends) into variants an admin merges. A wrong split costs
+# an admin one merge; a wrong merge mixes two roles silently.
+#
+# MIN_FIT, five profiles against the categories those JDs make:
+#
+#     right roles (backend->Backend, data->Data Analyst, ...)   0.72 - 0.95
+#     doubtful: backend->Data Analyst 0.51, data->Financial Analyst 0.49
+#     wrong: marketing->Data Analyst 0.38, frontend->Backend (2) 0.31
+#
+# 0.45 drops every wrong one with room; 0.40 dropped the 0.38 by only 0.02.
+# It keeps data->Financial Analyst (0.49), a weak but not absurd suggestion.
 CATEGORY = {
     "MERGE_THRESHOLD": float(os.getenv("CATEGORY_MERGE_THRESHOLD", 0.75)),
-    "MIN_FIT": float(os.getenv("CATEGORY_MIN_FIT", 0.4)),
+    "MIN_FIT": float(os.getenv("CATEGORY_MIN_FIT", 0.45)),
     "MAX_PER_PROFILE": int(os.getenv("CATEGORY_MAX_PER_PROFILE", 3)),
     "CENTROID_WEIGHT": float(os.getenv("CATEGORY_CENTROID_WEIGHT", 0.5)),
 }

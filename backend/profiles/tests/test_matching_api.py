@@ -422,6 +422,29 @@ class TestVectorSearch:
         body = post(as_company, SEARCH, {"jd_text": SAMPLE_JOB_DESCRIPTION}).json()
         assert body["job"]["required_skills"] == ["SolidWorks"]
 
+    def test_a_chat_model_that_eats_the_budget_still_leaves_a_vector_search(
+        self, as_company, indexed, llm_on, settings
+    ):
+        """
+        A slow chat model (Gemma on a CPU takes longer than the budget) must
+        not cost the search its embedding: the JD is embedded first, so the
+        ranking stays on vectors and only the model's reading falls back.
+        """
+        import time
+
+        settings.RESUME_ANALYSIS = {**settings.RESUME_ANALYSIS, "TIME_BUDGET_SECONDS": 0.05}
+
+        def slow_reply(system, user):
+            time.sleep(0.1)  # past the whole budget, like a read timeout
+            raise llm.LLMUnavailable("read timed out")
+
+        client = llm_on(FakeLLMClient(slow_reply))
+        body = post(as_company, SEARCH, {"jd_text": SAMPLE_JOB_DESCRIPTION}).json()
+        assert client.embedded, "the JD was never embedded"
+        assert body["fallback"] is False
+        assert body["job"]["source"] != "llm"
+        assert {row["match"]["semantic_source"] for row in body["results"]} == {"embedding"}
+
 
 # --- scoring named profiles -----------------------------------------------------------
 

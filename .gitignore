@@ -36,3 +36,6 @@ backend/.keys/
 
 # Local demo credentials: plain-text passwords, never for a shared repo
 DEMO_LOGINS.md
+
+# File cache (CACHE_BACKEND=file default location)
+/backend/.cache/
