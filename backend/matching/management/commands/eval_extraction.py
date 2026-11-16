@@ -3,6 +3,9 @@ Score the extractors against the hand-checked sample resumes.
 
     python manage.py eval_extraction          regex, and the LLM when it is enabled
     python manage.py eval_extraction --llm    the same; says so when the LLM is off
+    python manage.py eval_extraction --llm --dump DIR [--sample KEY ...]
+                                              also write every raw model reply,
+                                              with its timing, to DIR/<key>.json
 
 Per field, how many samples each reader got right: experience within 0.1
 years, the exact set of education levels, and the age and CGPA on the
@@ -18,8 +21,11 @@ That difference is the point of measuring both.
 from __future__ import annotations
 
 import datetime
+import json
+import time
+from pathlib import Path
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from matching import llm
 from matching.engine import MatchingEngine
@@ -82,6 +88,55 @@ def shown(value) -> str:
     return "nothing" if value is None else f"{value:g}" if isinstance(value, float) else str(value)
 
 
+class ReplyRecorder:
+    """
+    Records every model call one sample makes: the raw HTTP body when the
+    client is a real one (the reply, and Ollama's `reasoning` and token
+    usage), the content string either way, and the seconds each call took.
+    The recordings become regression fixtures and the timing evidence.
+    """
+
+    def __init__(self, client):
+        self.calls: list[dict] = []
+        self._client = client
+        self._last_body = None
+        post, chat = client._post, client.chat_json
+
+        def recording_post(path, payload):
+            body = post(path, payload)
+            self._last_body = body
+            return body
+
+        def recording_chat(system, user):
+            self._last_body = None
+            started = time.monotonic()
+            call = {"attempt": len(self.calls) + 1}
+            try:
+                content = chat(system, user)
+            except llm.LLMUnavailable as exc:
+                call.update(seconds=round(time.monotonic() - started, 1), error=str(exc), content=None)
+                self.calls.append(call)
+                raise
+            call.update(seconds=round(time.monotonic() - started, 1), content=content)
+            if self._last_body is not None:
+                call["body"] = self._last_body
+            self.calls.append(call)
+            return content
+
+        client._post, client.chat_json = recording_post, recording_chat
+
+    def write(self, directory: Path, sample: SampleResume, seconds: float) -> None:
+        record = {
+            "key": sample.key,
+            "model": self._client.model,
+            "reasoning_effort": getattr(self._client, "reasoning_effort", ""),
+            "total_seconds": round(seconds, 1),
+            "calls": self.calls,
+        }
+        (directory / f"{sample.key}.json").write_text(json.dumps(record, indent=1, ensure_ascii=False) + "\n")
+        self.calls = []
+
+
 class Command(BaseCommand):
     help = "Per-field accuracy of regex (and the LLM, when enabled) on the hand-checked sample resumes."
 
@@ -90,20 +145,49 @@ class Command(BaseCommand):
             "--llm", action="store_true",
             help="Score the LLM too. It already runs whenever LLM_ENABLED is true; this says so when it is not.",
         )
+        parser.add_argument(
+            "--dump", metavar="DIR",
+            help="Write each sample's raw model replies and timings to DIR/<key>.json.",
+        )
+        parser.add_argument(
+            "--sample", action="append", metavar="KEY",
+            help="Only this sample (repeatable). Default: all of them.",
+        )
 
     def handle(self, *args, **options):
         today = datetime.date.today()
+        samples = SAMPLE_RESUMES
+        if options.get("sample"):
+            known = {sample.key for sample in SAMPLE_RESUMES}
+            unknown = set(options["sample"]) - known
+            if unknown:
+                raise CommandError(f"Unknown sample(s): {', '.join(sorted(unknown))}")
+            samples = tuple(s for s in SAMPLE_RESUMES if s.key in options["sample"])
+
         readers = {"regex": regex_reading}
+        recorder = dump_dir = None
         if llm.llm_enabled():
-            readers["llm"] = llm_reading(llm.get_client())
+            client = llm.get_client()
+            if options.get("dump"):
+                dump_dir = Path(options["dump"])
+                dump_dir.mkdir(parents=True, exist_ok=True)
+                recorder = ReplyRecorder(client)
+            readers["llm"] = llm_reading(client)
         elif options["llm"]:
             self.stdout.write("The LLM is disabled (LLM_ENABLED is false); scoring regex only.\n")
 
         hits = {(reader, field): 0 for reader in readers for field in FIELDS}
         scored = dict.fromkeys(FIELDS, 0)
         misses: list[str] = []
-        for sample in SAMPLE_RESUMES:
-            readings = {name: read(sample.text, today) for name, read in readers.items()}
+        for sample in samples:
+            readings = {}
+            for name, read in readers.items():
+                started = time.monotonic()
+                readings[name] = read(sample.text, today)
+                if name == "llm" and recorder is not None:
+                    recorder.write(dump_dir, sample, time.monotonic() - started)
+                    self.stdout.write(f"  {sample.key}: {time.monotonic() - started:.1f}s\n")
+                    self.stdout.flush()
             for field in FIELDS:
                 want = expected(sample, field)
                 if want is None:
@@ -119,7 +203,7 @@ class Command(BaseCommand):
                             f"  {name:<6} {field:<11} {sample.key}  expected {shown(want)}, got {read_as}"
                         )
 
-        self.stdout.write(f"Extraction accuracy on {len(SAMPLE_RESUMES)} hand-checked sample resumes\n\n")
+        self.stdout.write(f"Extraction accuracy on {len(samples)} hand-checked sample resumes\n\n")
         self.stdout.write(f"{'field':<12}{'scored':>7}" + "".join(f"  {name:>11}" for name in readers) + "\n")
         for field in FIELDS:
             cells = []
