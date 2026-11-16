@@ -16,6 +16,14 @@ import OutcomesPage from '@/pages/admin/OutcomesPage'
 import ProfileDetailPage from '@/pages/admin/ProfileDetailPage'
 import ProfilesPage from '@/pages/admin/ProfilesPage'
 import UsersPage from '@/pages/admin/UsersPage'
+import AllOpportunitiesPage from '@/pages/admin/AllOpportunitiesPage'
+import OpportunityReviewPage from '@/pages/admin/OpportunityReviewPage'
+import OpportunityStatsPage from '@/pages/admin/OpportunityStatsPage'
+import ApplicantsPage from '@/pages/company/ApplicantsPage'
+import OpportunitiesPage from '@/pages/company/OpportunitiesPage'
+import ApplicationsPage from '@/pages/student/ApplicationsPage'
+import JobsPage from '@/pages/student/JobsPage'
+import NotificationsPage from '@/pages/student/NotificationsPage'
 import CompanyHome from '@/pages/company/CompanyHome'
 import StudentDetailPage from '@/pages/company/StudentDetailPage'
 import StudentSearchPage from '@/pages/company/StudentSearchPage'
@@ -198,6 +206,19 @@ function AppRoutes() {
           </Shell>
         }
       />
+
+      {/* Phase B: opportunities. Stage 3 (suggestions) and 4 (exports) add routes here. */}
+      <Route path="/student/jobs" element={<Shell><RequireRole role="student"><JobsPage /></RequireRole></Shell>} />
+      <Route path="/student/applications" element={<Shell><RequireRole role="student"><ApplicationsPage /></RequireRole></Shell>} />
+      <Route path="/student/notifications" element={<Shell><RequireRole role="student"><NotificationsPage /></RequireRole></Shell>} />
+
+      <Route path="/company/opportunities" element={<Shell><RequireRole role="company"><OpportunitiesPage /></RequireRole></Shell>} />
+      <Route path="/company/opportunities/:opportunityId/applicants" element={<Shell><RequireRole role="company"><ApplicantsPage /></RequireRole></Shell>} />
+
+      <Route path="/admin/opportunities" element={<Shell><RequireRole role="admin"><AllOpportunitiesPage /></RequireRole></Shell>} />
+      <Route path="/admin/opportunities/review" element={<Shell><RequireRole role="admin"><OpportunityReviewPage /></RequireRole></Shell>} />
+      <Route path="/admin/opportunities/stats" element={<Shell><RequireRole role="admin"><OpportunityStatsPage /></RequireRole></Shell>} />
+      <Route path="/admin/opportunities/:opportunityId/applicants" element={<Shell><RequireRole role="admin"><ApplicantsPage /></RequireRole></Shell>} />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 
 import { areaOf } from '@/api/auth'
+import { NOTIFICATIONS_CHANGED, notificationsApi } from '@/api/notifications'
 import { Badge, Button } from '@/components/ui'
 import { homePathFor, useAuth } from '@/auth/AuthContext'
 
@@ -9,6 +10,9 @@ const NAV_BY_ROLE = {
   student: [
     { to: '/student', label: 'Dashboard', end: true },
     { to: '/student/profile', label: 'My profile' },
+    { to: '/student/jobs', label: 'Jobs' },
+    { to: '/student/applications', label: 'My applications' },
+    { to: '/student/notifications', label: 'Notifications' },
   ],
   admin: [
     { to: '/admin', label: 'Dashboard', end: true },
@@ -17,10 +21,14 @@ const NAV_BY_ROLE = {
     { to: '/admin/profiles', label: 'Profiles' },
     { to: '/admin/outcomes', label: 'Outcomes' },
     { to: '/admin/users', label: 'All users' },
+    { to: '/admin/opportunities', label: 'Postings', end: true },
+    { to: '/admin/opportunities/review', label: 'Review queue' },
+    { to: '/admin/opportunities/stats', label: 'Posting figures' },
   ],
   company: [
     { to: '/company', label: 'Dashboard', end: true },
     { to: '/company/students', label: 'Browse students' },
+    { to: '/company/opportunities', label: 'My postings' },
   ],
 } as const
 
@@ -33,6 +41,25 @@ const ROLE_LABEL = {
 export default function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const [unread, setUnread] = useState(0)
+  const isStudent = user ? areaOf(user) === 'student' : false
+
+  // Only students receive notifications (D26). A failed count just hides the badge.
+  useEffect(() => {
+    if (!isStudent) return
+    let cancelled = false
+    const refresh = () =>
+      notificationsApi
+        .list(true)
+        .then((rows) => !cancelled && setUnread(rows.length))
+        .catch(() => !cancelled && setUnread(0))
+    void refresh()
+    window.addEventListener(NOTIFICATIONS_CHANGED, refresh)
+    return () => {
+      cancelled = true
+      window.removeEventListener(NOTIFICATIONS_CHANGED, refresh)
+    }
+  }, [isStudent])
 
   if (!user) return <>{children}</>
 
@@ -60,6 +87,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 }
               >
                 {link.label}
+                {link.to === '/student/notifications' && unread > 0 ? (
+                  <span className="ml-1.5 rounded-full bg-brand-600 px-1.5 py-0.5 text-xs text-white">
+                    <span aria-hidden>{unread}</span>
+                    <span className="sr-only">{unread} unread</span>
+                  </span>
+                ) : null}
               </NavLink>
             ))}
           </nav>
