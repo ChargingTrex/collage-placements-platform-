@@ -4,6 +4,7 @@ Tests always run against the locmem email backend and a per-test media
 directory, regardless of what the developer's .env points at.
 """
 
+import copy
 import os
 
 import pytest
@@ -18,6 +19,69 @@ os.environ["CACHE_BACKEND"] = "locmem"
 from django.conf import settings as _settings  # noqa: E402
 
 _settings.CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
+#: Tuning a demo .env (or the shell) may set, which tests assume at their
+#: code default: the measured thresholds (V5) and the JD budget and TTL (V6).
+#: env var -> path into settings
+PINNED_TO_CODE_DEFAULT = {
+    "JD_READING_BUDGET_SECONDS": ("MATCH_SCORE", "JD_READING_BUDGET_SECONDS"),
+    "JD_CACHE_SECONDS": ("JD_CACHE_SECONDS",),
+    "MATCH_EMBEDDING_FLOOR": ("MATCH_SCORE", "CALIBRATION", "embedding", "FLOOR"),
+    "MATCH_EMBEDDING_CEILING": ("MATCH_SCORE", "CALIBRATION", "embedding", "CEILING"),
+    "CATEGORY_MERGE_THRESHOLD": ("CATEGORY", "MERGE_THRESHOLD"),
+    "CATEGORY_MIN_FIT": ("CATEGORY", "MIN_FIT"),
+    "SKILL_ALIAS_SUGGESTION_THRESHOLD": ("SKILL_GRAPH", "ALIAS_SUGGESTION_THRESHOLD"),
+}
+
+
+def _code_defaults():
+    """
+    The settings module run again with the pinned names absent from the
+    environment and from .env, so each reads its code default. Settings are
+    already loaded by now (pytest-django reads them before this conftest).
+    """
+    import importlib.util
+
+    import dotenv
+
+    saved = {name: os.environ.pop(name) for name in PINNED_TO_CODE_DEFAULT if name in os.environ}
+    real_load = dotenv.load_dotenv
+
+    def load_without_pinned(*args, **kwargs):
+        loaded = real_load(*args, **kwargs)
+        for name in PINNED_TO_CODE_DEFAULT:
+            os.environ.pop(name, None)
+        return loaded
+
+    dotenv.load_dotenv = load_without_pinned
+    try:
+        spec = importlib.util.find_spec("config.settings")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        dotenv.load_dotenv = real_load
+        os.environ.update(saved)
+    return module
+
+
+def _pin_to_code_defaults():
+    defaults = _code_defaults()
+    for path in PINNED_TO_CODE_DEFAULT.values():
+        value = getattr(defaults, path[0])
+        for key in path[1:]:
+            value = value[key]
+        if len(path) == 1:
+            setattr(_settings, path[0], value)
+            continue
+        top = copy.deepcopy(getattr(_settings, path[0]))
+        node = top
+        for key in path[1:-1]:
+            node = node[key]
+        node[path[-1]] = value
+        setattr(_settings, path[0], top)
+
+
+_pin_to_code_defaults()
 
 
 @pytest.fixture(autouse=True)

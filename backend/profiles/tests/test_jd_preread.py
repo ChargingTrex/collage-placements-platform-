@@ -250,9 +250,9 @@ class TestLiveJdReadingBudget:
         assert 2 * DAY - 60 < left <= 2 * DAY
 
     def test_the_default_is_a_few_seconds(self):
-        from django.conf import settings
-
-        assert 0 < settings.MATCH_SCORE["JD_READING_BUDGET_SECONDS"] <= 5
+        """The code default, read with no .env and no exported value: a demo
+        .env may set 0 (never wait on the model) without failing this."""
+        assert 0 < code_defaults()["JD_READING_BUDGET_SECONDS"] <= 5
 
 
 # --- the cache backend ------------------------------------------------------------
@@ -277,6 +277,52 @@ def read_caches(cwd=BACKEND, **env):
         [sys.executable, "-c", _READ_CACHES], cwd=cwd, env=clean, capture_output=True, text=True
     )
     return result
+
+
+_READ_DEFAULTS = """
+import json, os, sys
+sys.path.insert(0, os.environ["BACKEND_DIR"])
+os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
+import dotenv
+dotenv.load_dotenv = lambda *a, **k: False  # defaults, not a developer .env
+from django.conf import settings
+out = {}
+for name, path in json.loads(sys.argv[1]).items():
+    value = getattr(settings, path[0])
+    for key in path[1:]:
+        value = value[key]
+    out[name] = value
+print(json.dumps(out))
+"""
+
+
+def code_defaults():
+    """Each pinned setting as the code sets it: no .env, none exported."""
+    from conftest import PINNED_TO_CODE_DEFAULT
+
+    clean = {k: v for k, v in os.environ.items() if k not in PINNED_TO_CODE_DEFAULT}
+    clean["BACKEND_DIR"] = str(BACKEND)
+    result = subprocess.run(
+        [sys.executable, "-c", _READ_DEFAULTS, json.dumps(PINNED_TO_CODE_DEFAULT)],
+        cwd=BACKEND, env=clean, capture_output=True, text=True, check=True,
+    )
+    return json.loads(result.stdout)
+
+
+class TestSuiteIgnoresDemoTuning:
+    def test_every_pinned_setting_is_at_its_code_default(self):
+        """A demo .env sets JD_READING_BUDGET_SECONDS=0 and may retune the
+        thresholds; tests written against the defaults must not see that."""
+        from django.conf import settings
+
+        from conftest import PINNED_TO_CODE_DEFAULT
+
+        for name, expected in code_defaults().items():
+            path = PINNED_TO_CODE_DEFAULT[name]
+            value = getattr(settings, path[0])
+            for key in path[1:]:
+                value = value[key]
+            assert value == expected, name
 
 
 class TestCacheBackend:
