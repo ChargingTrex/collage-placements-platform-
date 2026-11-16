@@ -95,9 +95,9 @@ repo can create them for you.
   watch the `serve_demo` terminal, or sign in with a pre-created account.
   `checkpoints/e2e_phase_0_3.py` needs the code in the response, so against the
   public link it will report the signup checks as failed; run it locally with
-  `EXPOSE_OTP_IN_RESPONSE=1` (see below).
-- `/django-admin/` is switched off (404) when DEBUG is off. To use it, set
-  `DJANGO_ADMIN_ENABLED=true` for a local run only.
+  `SERVE_DEMO_LOCAL_TEST=1` (see below).
+- `/django-admin/` is switched off (404) on the public link. To use the admin,
+  run the ordinary dev server (`manage.py runserver`, DEBUG on) locally.
 - The Mac must stay awake (`caffeinate -dis` in a spare terminal).
 
 ## Smoke test and security check
@@ -107,13 +107,16 @@ Locally, against `serve_demo`, on a throwaway database:
 ```
 cd backend && export LLM_ENABLED=false
 python manage.py migrate && python manage.py seed_demo
-OTP_THROTTLE_RATE=1000/hour EXPOSE_OTP_IN_RESPONSE=1 DEMO_ALLOW_INSECURE_KEY=1 \
+SERVE_DEMO_LOCAL_TEST=1 DEMO_ALLOW_INSECURE_KEY=1 OTP_THROTTLE_RATE=1000/hour \
   ../scripts/serve_demo.sh --port 8765 &
 python checkpoints/e2e_phase_0_3.py --base-url http://127.0.0.1:8765
 ```
 
-(`EXPOSE_OTP_IN_RESPONSE=1` and the insecure key are for this local run only; the
-script warns about the first.)
+`SERVE_DEMO_LOCAL_TEST=1` is the only way to get sign-in codes back in responses
+with DEBUG off, and `DEMO_ALLOW_INSECURE_KEY=1` allows the dev secret key. Both
+are local-only: `serve_demo` refuses either one when `--tunnel-host` or
+`--netlify-domain` is set. Do not set `EXPOSE_OTP_IN_RESPONSE` yourself; with
+DEBUG off settings ignore it unless `SERVE_DEMO_LOCAL_TEST=1`.
 
 On the public link, check by hand (replace the host):
 
@@ -123,3 +126,57 @@ curl -s -o /dev/null -w '%{http_code}\n' https://HOST/media/x.pdf          # 404
 curl -s -o /dev/null -w '%{http_code}\n' https://HOST/api/auth/demo/personas  # 404
 curl -s https://HOST/api/health                                            # "debug":false
 ```
+
+## What `serve_demo` forces, and why a `.env` cannot undo it
+
+`serve_demo` exports these before starting gunicorn:
+
+| Variable | Value | Effect |
+| --- | --- | --- |
+| `DJANGO_DEBUG` | `false` | no debug pages, no browsable API |
+| `DJANGO_ADMIN_ENABLED` | `false` | `/django-admin/` is a 404 |
+| `DEMO_MODE` | `false` | no one-click demo sign-in routes |
+| `EXPOSE_OTP_IN_RESPONSE` | `false` | no sign-in codes in any response |
+| `SERVE_DEMO_LOCAL_TEST` | `0` | the local-test escape hatch is closed |
+
+The repo-root `.env` is read with `load_dotenv`, which never overrides a
+variable already exported in the environment, so a `.env` saying
+`EXPOSE_OTP_IN_RESPONSE=true` or `DJANGO_ADMIN_ENABLED=true` cannot win.
+`settings.py` adds a second guard: with DEBUG off, sign-in-code exposure is
+forced off unless `SERVE_DEMO_LOCAL_TEST=1`, and `DEMO_MODE` is ignored.
+
+## `/api/health` with DEBUG off
+
+Anonymous callers get only `status`, `service`, `debug` and, per check, `ok`
+plus `storage.backend` and `matching_engine.backend`. The storage path, the
+database engine or error text and the model details appear only with DEBUG on.
+
+## Trusted proxies and the throttles
+
+The OTP and anonymous throttles key on the client IP. `X-Forwarded-For` is
+client-controlled on its left, so only the entries our own proxies append are
+trusted: `TRUSTED_PROXY_COUNT` (also DRF's `NUM_PROXIES`) says how many. `serve_demo`
+sets it to **1** with a tunnel host and **2** with a tunnel host plus a Netlify
+domain (Netlify and ngrok each append one hop); override with
+`TRUSTED_PROXY_COUNT=n`. With 0 the header is ignored.
+
+**First real deploy check** (the Netlify behaviour is assumed, not yet seen):
+1. Send a request through the Netlify URL with a forged header, e.g.
+   `curl -s -H 'X-Forwarded-For: 6.6.6.6' https://YOUR-SITE.netlify.app/api/health`.
+2. Look at gunicorn's output or the ngrok inspector (http://127.0.0.1:4040) and
+   confirm the request's `X-Forwarded-For` ends with your real public IP then
+   Netlify's, in that order, with `6.6.6.6` at the far left.
+3. Confirm the throttle sees you: call `/api/auth/otp/request` more than
+   `OTP_THROTTLE_RATE` times from one machine and get a 429, then repeat with a
+   different forged `X-Forwarded-For` and still get the 429.
+4. If Netlify does not append (only ngrok's hop is present), restart with
+   `TRUSTED_PROXY_COUNT=1`. If every visitor is throttled together, the count is
+   too low (all share one hop); if forging avoids the 429, it is too high.
+
+## Before the demo
+
+- Clear the cache: `rm -rf backend/.cache` (if that folder exists; the file
+  cache also keeps throttle counters, so old 429s would survive a restart).
+- Re-run `read_jd` for the demo job descriptions so they are read fresh. Note:
+  I found no `read_jd` management command or file-cache setting on this branch,
+  so use whatever the demo checklist (E/G stream) names for it.
