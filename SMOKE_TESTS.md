@@ -1348,3 +1348,107 @@ analyze 200 88.1s
 Both values match the hand-checked ones (0.5 and 4 years). Each request made
 one chat call and two embedding calls. The server log shows no 5xx responses
 and no tracebacks.
+
+---
+
+## Demo-script E2E (`backend/checkpoints/e2e_demo.py`)
+
+Walks the 15-minute demo in `WEEKEND_DEMO_PLAN.md` ("Monday: the demo") against
+a running server, one group of checks per beat:
+
+| Group | Demo beat |
+|---|---|
+| 1, 1b | Officer's All users page, filters and summary; one-click persona sign-in |
+| 2 | Outcomes dashboard, batch filter, CSV export |
+| 3 | Officer's Profiles list and its verification checks |
+| 4 | Student detail (roster, transcript and self-reported CGPA); resume download and its audit-log row |
+| 5 | Someone else's transcript refused; the student's own accepted with a CGPA review |
+| 6 | Acme JD search: ranked students, score breakdown, role categories |
+| 7 | Nimbus cannot see hidden or shortlisted-only students |
+
+Standard library only, apart from the PDFs it draws with the backend's own
+reportlab, so run it with the project venv. Synthetic data only.
+
+> **Warning: both modes write to their target.** Default mode uploads Aarav's
+> transcript (opening a CGPA review), runs his resume analysis, signs in
+> several accounts and writes audit rows. `--public` makes a real signup, which
+> sends an OTP email. Never run either against the demo DB snapshot, or against
+> a public link that has real accounts. Use a throwaway database.
+
+A missing seed, a 404 where an endpoint should exist, a server that is down, or
+a run with no passing checks is a FAIL with exit status 1, never a quiet pass.
+
+### Run it (default: deterministic, LLM off)
+
+```bash
+cd backend
+export LLM_ENABLED=false DATABASE_URL=sqlite:////tmp/demo.sqlite3 MEDIA_ROOT=/tmp/demo-media
+../.venv/bin/python manage.py migrate
+../.venv/bin/python manage.py seed_demo --with-students
+../.venv/bin/python manage.py seed_outcomes_demo
+../.venv/bin/python manage.py runserver 127.0.0.1:8791 --noreload     # another terminal, same exports
+
+../.venv/bin/python checkpoints/e2e_demo.py --base-url http://127.0.0.1:8791
+```
+
+Nothing in this mode asserts on what Gemma or the embeddings say, so it is
+the same with the LLM off. Prove it with `--repeat 2`, which runs the suite
+twice in fresh processes and fails unless the output is identical:
+
+```bash
+../.venv/bin/python checkpoints/e2e_demo.py --base-url http://127.0.0.1:8791 --repeat 2
+```
+
+The audit-log checks read `core_auditlog` straight from the SQLite file named
+by `DATABASE_URL` (or `--db PATH`), since the API has no audit-log endpoint;
+without a readable file they are reported SKIP. Re-running is safe: the suite
+re-uploads Aarav's own transcript each time (it replaces the last one) and
+counts audit rows as before/after deltas.
+
+### `--live-ai`
+
+`--live-ai` (or `E2E_LIVE_AI=1`) adds the assertions that need Gemma and
+embeddings: the JD reading has a canonical role, the vector index answers (no
+fallback), and the role category exists after the search. Start the server
+without `LLM_ENABLED=false`, and only while no other agent is using Ollama.
+
+### `--public` (server with DEBUG off, e.g. `serve_demo`)
+
+```bash
+../.venv/bin/python checkpoints/e2e_demo.py --public --base-url https://<public-link>
+```
+
+It needs the seeded roster and officer (`seed_demo`): it provokes a real signup
+for roster student 220200905 and signs the officer in, to scan those responses.
+It asserts: `/api/health` reports `debug=false`; a bad URL
+is a plain 404 with no Django debug page or traceback; `/media/...` is 404;
+`GET /api/auth/demo/personas` and `POST /api/auth/demo/login` (every persona)
+are 404 and issue no tokens; and no response body from signup, OTP request,
+login or `me` carries an OTP or sign-in code, in a JSON key or as a 6-digit
+number beside the word "code" or "otp".
+Run against a DEBUG server it fails (checked), so it does bite. A signup that
+is throttled (429) counts as fine, so repeat runs stay identical.
+
+### Expected output
+
+A `FAIL` anywhere means the demo path is broken. The only SKIP in default mode
+is the `--live-ai` check:
+
+```text
+e2e_demo: demo mode
+
+== 0. Server and sign-in
+PASS  server answers /api/health with 200
+PASS  the shared officer can sign in with a password
+...
+== 1b. Demo persona sign-in (/api/auth/demo/)
+PASS  1b. personas lists the four buttons (student, officer, acme, nimbus)
+...
+== 7. Recruiter (Nimbus): hidden and shortlisted-only students stay out of sight
+PASS  7. Nimbus does not see the hidden student
+PASS  7. Nimbus does not see the one only Acme shortlisted
+...
+111/111 checks passed, 1 skipped
+```
+
+`--public` ends `20/20 checks passed`. Exit status is 1 if any check fails.
