@@ -148,6 +148,13 @@ class TestLocalStore:
 
         assert [d for d, _ in store.search(fake_embedding("python"), k=5, model="new-model")] == ["new"]
 
+    def test_delete_other_models_keeps_only_the_named_model(self, store):
+        store.upsert("old", fake_embedding("python"), {}, "old-model")
+        store.upsert("new", fake_embedding("python"), {}, "new-model")
+
+        assert store.delete_other_models("new-model") == 1
+        assert store.get("old") is None and store.get("new") is not None
+
     def test_upsert_replaces_and_delete_removes(self, store):
         store.upsert("a", fake_embedding("python"), {"department": "CE"}, "m")
         store.upsert("a", fake_embedding("java"), {"department": "IT"}, "m")
@@ -199,6 +206,14 @@ class FakeCollection:
     def delete_one(self, query):
         self.calls.append(("delete_one", query))
 
+    def delete_many(self, query):
+        self.calls.append(("delete_many", query))
+
+        class Result:
+            deleted_count = 2
+
+        return Result()
+
     def update_one(self, query, update):
         self.calls.append(("update_one", query, update))
 
@@ -238,6 +253,12 @@ class TestMongoStore:
         assert upsert and query == {"_id": "p1"}
         assert doc["meta"] == {"department": "CE"}
         assert "secret" not in str(doc)
+
+    def test_vectors_from_other_models_are_deleted_in_one_call(self):
+        collection = FakeCollection()
+
+        assert MongoVectorStore(collection, "idx").delete_other_models("nomic") == 2
+        assert collection.calls == [("delete_many", {"model": {"$ne": "nomic"}})]
 
     def test_the_index_declares_every_filter_field(self):
         definition = vector_index_definition(768)

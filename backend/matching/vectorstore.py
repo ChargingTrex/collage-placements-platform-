@@ -62,6 +62,10 @@ class VectorStore:
         """Merge metadata into a stored document without re-embedding it."""
         raise NotImplementedError
 
+    def delete_other_models(self, model: str) -> int:
+        """Delete every vector `model` did not make. Returns how many."""
+        raise NotImplementedError
+
 
 def _clean_meta(meta: dict) -> dict:
     """Only the filterable fields -- nothing else is allowed into a store."""
@@ -148,6 +152,12 @@ class LocalVectorStore(VectorStore):
         if row:
             row.meta = {**row.meta, **_clean_meta(meta)}
             row.save(update_fields=["meta", "updated_at"])
+
+    def delete_other_models(self, model):
+        from matching.models import StoredVector
+
+        deleted, _ = StoredVector.objects.exclude(model=model).delete()
+        return deleted
 
 
 # --- mongo -------------------------------------------------------------------
@@ -252,6 +262,9 @@ class MongoVectorStore(VectorStore):
             self._collection.update_one(
                 {"_id": str(doc_id)}, {"$set": {f"meta.{key}": value for key, value in clean.items()}}
             )
+
+    def delete_other_models(self, model):
+        return self._collection.delete_many({"model": {"$ne": model}}).deleted_count
 
     def create_index(self, dims: int) -> None:
         spec = {"definition": vector_index_definition(dims), "name": self._index, "type": "vectorSearch"}
