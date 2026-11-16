@@ -767,6 +767,16 @@ class TestReindexVectorsCommand:
         assert not StoredVector.objects.filter(doc_id="orphan-old-model").exists()
         assert "removed 1 vector(s) from another model" in capsys.readouterr().out
 
+    def test_a_reindex_with_failures_removes_nothing(self, analysed, llm_on):
+        """A mistyped EMBED_MODEL fails every embedding: it must not also
+        empty the store of the vectors that still work."""
+        llm_on(FakeLLMClient(down=True))
+        get_vector_store().upsert("orphan-old-model", [0.5] * 384, {}, "old-embed")
+
+        call_command("reindex_vectors")
+
+        assert StoredVector.objects.filter(doc_id="orphan-old-model").exists()
+
     def test_a_partial_reindex_removes_nothing(self, analysed, llm_on):
         llm_on(FakeLLMClient())
         get_vector_store().upsert("orphan-old-model", [0.5] * 384, {}, "old-embed")

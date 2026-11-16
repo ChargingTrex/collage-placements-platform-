@@ -57,10 +57,11 @@ class Command(BaseCommand):
                 failed += 1
                 self.stderr.write(f"{analysis.profile.prn}: embedding failed; left marked for reindex.")
         summary = f"Reindexed {done}; {failed} failed."
-        if not prn and not dirty_only:
+        if not prn and not dirty_only and not failed:
             # A full run is the switch to this model: a vector another model
             # made shares no space with these, and nothing would replace one
-            # whose profile is no longer analysed.
+            # whose profile is no longer analysed. Only after every embedding
+            # worked: a mistyped EMBED_MODEL must not empty the store.
             removed = get_vector_store().delete_other_models(embedder.model)
             summary += f" removed {removed} vector(s) from another model."
         self.stdout.write(self.style.SUCCESS(summary))
