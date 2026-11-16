@@ -45,6 +45,16 @@ def llm_on(monkeypatch):
     return _install
 
 
+DAY = 60 * 60 * 24
+
+
+def seconds_left(key):
+    """Time to expiry of a key in the suite's locmem cache."""
+    import time
+
+    return cache._expire_info[cache.make_and_validate_key(key)] - time.time()
+
+
 def no_chat(system, user):
     raise AssertionError("the search called the chat model for a pre-read JD")
 
@@ -96,6 +106,41 @@ class TestReadJdCommand:
         call_command("read_jd", "-", stdin=io.StringIO("﻿" + SAMPLE_JOB_DESCRIPTION))
 
         assert cache.get(llm.jd_cache_key(SAMPLE_JOB_DESCRIPTION, client.model)) is not None
+
+    def test_it_prints_when_the_reading_expires(self, llm_on):
+        llm_on()
+        out = io.StringIO()
+
+        call_command("read_jd", "-", stdin=io.StringIO(SAMPLE_JOB_DESCRIPTION), stdout=out)
+
+        assert "expires" in out.getvalue()
+
+    def test_ttl_keeps_a_reading_made_the_evening_before(self, llm_on):
+        client = llm_on()
+
+        call_command("read_jd", "-", "--ttl", str(2 * DAY), stdin=io.StringIO(SAMPLE_JOB_DESCRIPTION))
+
+        left = seconds_left(llm.jd_cache_key(SAMPLE_JOB_DESCRIPTION, client.model))
+        assert 2 * DAY - 60 < left <= 2 * DAY
+
+    def test_rerunning_with_ttl_extends_a_reading_already_cached(self, llm_on):
+        client = llm_on()
+        key = llm.jd_cache_key(SAMPLE_JOB_DESCRIPTION, client.model)
+        cache.set(key, job_reply(), 60)
+
+        call_command("read_jd", "-", "--ttl", str(2 * DAY), stdin=io.StringIO(SAMPLE_JOB_DESCRIPTION))
+
+        assert client.prompts == []  # still the cached reading
+        assert seconds_left(key) > DAY
+
+    def test_the_recorded_marker_outlives_the_reading(self, llm_on):
+        """A marker gone before the reading would let the next search
+        count the JD in its category a second time."""
+        llm_on()
+
+        call_command("read_jd", "-", "--ttl", str(60 * DAY), stdin=io.StringIO(SAMPLE_JOB_DESCRIPTION))
+
+        assert seconds_left(match.jd_recorded_key(SAMPLE_JOB_DESCRIPTION)) > 60 * DAY - 60
 
     def test_it_runs_without_the_live_budget(self, llm_on, settings):
         """A CPU model takes a minute: the pre-read must wait for it."""
@@ -195,6 +240,15 @@ class TestLiveJdReadingBudget:
 
         assert job.facts is not None and job.facts.canonical_role == "Backend Engineer"
 
+    def test_a_live_reading_is_cached_for_jd_cache_seconds(self, llm_on, settings):
+        settings.JD_CACHE_SECONDS = 2 * DAY
+        client = llm_on()
+
+        match.read_job(SAMPLE_JOB_DESCRIPTION)
+
+        left = seconds_left(llm.jd_cache_key(SAMPLE_JOB_DESCRIPTION, client.model))
+        assert 2 * DAY - 60 < left <= 2 * DAY
+
     def test_the_default_is_a_few_seconds(self):
         from django.conf import settings
 
@@ -210,12 +264,14 @@ os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
 import dotenv
 dotenv.load_dotenv = lambda *a, **k: False  # defaults, not a developer .env
 from django.conf import settings
-print(json.dumps({k: str(v) for k, v in settings.CACHES["default"].items() if k in ("BACKEND", "LOCATION")}))
+out = {k: str(v) for k, v in settings.CACHES["default"].items() if k in ("BACKEND", "LOCATION")}
+out["JD_CACHE_SECONDS"] = settings.JD_CACHE_SECONDS
+print(json.dumps(out))
 """
 
 
 def read_caches(cwd=BACKEND, **env):
-    clean = {k: v for k, v in os.environ.items() if k not in ("CACHE_BACKEND", "CACHE_LOCATION")}
+    clean = {k: v for k, v in os.environ.items() if k not in ("CACHE_BACKEND", "CACHE_LOCATION", "JD_CACHE_SECONDS")}
     clean.update(env, BACKEND_DIR=str(BACKEND))
     result = subprocess.run(
         [sys.executable, "-c", _READ_CACHES], cwd=cwd, env=clean, capture_output=True, text=True
@@ -240,10 +296,9 @@ class TestCacheBackend:
 
     def test_file_gives_a_shared_persistent_cache_at_the_location(self, tmp_path):
         result = read_caches(CACHE_BACKEND="file", CACHE_LOCATION=str(tmp_path / "cache"))
-        assert json.loads(result.stdout) == {
-            "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
-            "LOCATION": str(tmp_path / "cache"),
-        }
+        read = json.loads(result.stdout)
+        assert read["BACKEND"] == "django.core.cache.backends.filebased.FileBasedCache"
+        assert read["LOCATION"] == str(tmp_path / "cache")
 
     def test_a_relative_location_is_under_the_backend_folder_from_any_directory(self, tmp_path):
         """read_jd and gunicorn may start in different directories; a
@@ -256,6 +311,10 @@ class TestCacheBackend:
     def test_a_home_relative_location_is_expanded(self):
         result = read_caches(CACHE_BACKEND="file", CACHE_LOCATION="~/placement-cache")
         assert json.loads(result.stdout)["LOCATION"] == str(Path.home() / "placement-cache")
+
+    def test_a_jd_reading_is_kept_a_day_unless_jd_cache_seconds_says(self):
+        assert json.loads(read_caches().stdout)["JD_CACHE_SECONDS"] == DAY
+        assert json.loads(read_caches(JD_CACHE_SECONDS="172800").stdout)["JD_CACHE_SECONDS"] == 2 * DAY
 
     def test_an_unknown_backend_is_refused(self):
         result = read_caches(CACHE_BACKEND="redis-maybe")

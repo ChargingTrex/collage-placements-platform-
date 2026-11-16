@@ -358,6 +358,10 @@ elif CACHE_BACKEND == "file":
 else:
     raise ImproperlyConfigured(f"Unknown CACHE_BACKEND '{CACHE_BACKEND}'. Use locmem or file.")
 
+# How long a JD's model reading stays cached (default a day). A JD read the
+# evening before a demo needs more: `read_jd --ttl` sets it per reading.
+JD_CACHE_SECONDS = int(os.getenv("JD_CACHE_SECONDS", 60 * 60 * 24))
+
 # Role categories learnt from recruiters' JDs (matching/categories.py).
 # MERGE_THRESHOLD is a raw embedding cosine between a JD and a same-titled
 # category's centroid: below it the JD starts a variant for an admin to

@@ -69,7 +69,7 @@ def jd_recorded_key(jd_text: str) -> str:
     return f"jd-recorded:{digest}"
 
 
-def _record_once(jd_text: str, facts: llm.JobFacts, vector, model) -> None:
+def _record_once(jd_text: str, facts: llm.JobFacts, vector, model, *, reading_ttl: int | None = None) -> None:
     """
     Feed the role categories with this JD, unless it already fed them.
 
@@ -80,7 +80,10 @@ def _record_once(jd_text: str, facts: llm.JobFacts, vector, model) -> None:
     gives it back, so the next request tries again.
     """
     key = jd_recorded_key(jd_text)
-    if not cache.add(key, True, JD_RECORDED_SECONDS):
+    # Never shorter than the reading: a marker gone while the reading is
+    # still cached would let the next search count the JD a second time.
+    ttl = max(JD_RECORDED_SECONDS, reading_ttl or settings.JD_CACHE_SECONDS)
+    if not cache.add(key, True, ttl):
         return
     try:
         record_job_description(facts, vector, model=model if vector is not None else None)
