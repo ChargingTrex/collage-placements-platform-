@@ -741,6 +741,25 @@ _PHONE_PREFIXES = ("", "0", "91", "091", "0091")
 _PHONE_PREFIX = r"(?:\(?\+?(?:0091|091|91|0)\)?[ \-]?)"
 
 
+def _international(phone: str) -> bool:
+    """Written with "+" and a country code other than India's."""
+    digits = re.sub(r"\D", "", phone or "")
+    return (phone or "").strip().startswith("+") and not digits.startswith("91")
+
+
+def _phone_shaped(phone: str) -> bool:
+    """
+    Ten digits after India's prefixes, or "+" with another country code and
+    8-15 digits (E.164's longest). gemma4 read the 9-digit PRN beside the
+    email as a phone; it is on the page, but it is not one. This is the same
+    line `verification.normalise_phones` draws: under ten digits is no phone.
+    """
+    digits = re.sub(r"\D", "", phone or "")
+    if _international(phone):
+        return 8 <= len(digits) <= 15
+    return len(digits) >= 10 and digits[:-10] in _PHONE_PREFIXES
+
+
 def _phone_on_page(phone: str, text: str) -> bool:
     """
     The number's digits are written as one standalone number, give or take
@@ -752,7 +771,7 @@ def _phone_on_page(phone: str, text: str) -> bool:
     digits = re.sub(r"\D", "", phone or "")
     if len(digits) < 7:
         return False
-    indian = len(digits) >= 10 and digits[:-10] in _PHONE_PREFIXES
+    indian = not _international(phone) and len(digits) >= 10 and digits[:-10] in _PHONE_PREFIXES
     # Any other number (a landline, another country) is written out in full.
     body = digits[-10:] if indian else digits
     written = _PHONE_GAP.join(re.escape(d) for d in body)
@@ -805,7 +824,9 @@ def drop_unstated_facts(data: dict, text: str) -> dict:
     if data.get("age") is not None and not _age_on_page(data["age"], text):
         data["age"] = None
         dropped.append("age")
-    phones = [phone for phone in data.get("phones") or [] if _phone_on_page(phone, text)]
+    phones = [
+        phone for phone in data.get("phones") or [] if _phone_shaped(phone) and _phone_on_page(phone, text)
+    ]
     if len(phones) != len(data.get("phones") or []):
         dropped.append("phones")
     emails = [email for email in data.get("emails") or [] if _email_on_page(email, text)]
