@@ -70,11 +70,22 @@ class LLMUnavailable(Exception):
 class LLMClient:
     """A thin client for an OpenAI-compatible chat + embeddings API."""
 
-    def __init__(self, base_url: str, model: str, embed_model: str, timeout: float):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        embed_model: str,
+        timeout: float,
+        *,
+        reasoning_effort: str = "",
+    ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.embed_model = embed_model
         self.timeout = timeout
+        #: "none", "low", ... for a thinking model. Empty sends nothing, so a
+        #: server that does not know the field never sees it.
+        self.reasoning_effort = reasoning_effort
 
     def _post(self, path: str, payload: dict) -> dict:
         import httpx  # imported lazily: optional at runtime
@@ -91,18 +102,18 @@ class LLMClient:
 
     def chat_json(self, system: str, user: str) -> str:
         """The model's reply, asked for as a JSON object. Returned unparsed."""
-        body = self._post(
-            "/chat/completions",
-            {
-                "model": self.model,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-            },
-        )
+        payload = {
+            "model": self.model,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
+        body = self._post("/chat/completions", payload)
         try:
             return body["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError) as exc:
@@ -131,6 +142,7 @@ def get_client() -> LLMClient:
         model=config["MODEL"],
         embed_model=config["EMBED_MODEL"],
         timeout=config["TIMEOUT_SECONDS"],
+        reasoning_effort=config.get("REASONING_EFFORT", ""),
     )
 
 

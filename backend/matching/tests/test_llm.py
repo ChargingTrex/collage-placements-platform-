@@ -364,6 +364,52 @@ class TestClient:
         assert seen["body"]["response_format"] == {"type": "json_object"}
 
 
+class TestReasoningEffort:
+    """G0: `reasoning_effort` goes out only when LLM_REASONING_EFFORT is set."""
+
+    @pytest.fixture
+    def sent(self, monkeypatch) -> dict:
+        seen = {}
+
+        def fake_post(url, json, timeout):
+            seen["body"] = json
+            return httpx.Response(
+                200, json={"choices": [{"message": {"content": "{}"}}]}, request=httpx.Request("POST", url)
+            )
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        return seen
+
+    def test_a_client_built_without_it_sends_nothing(self, sent):
+        llm.LLMClient("http://ollama/v1", "m", "e", timeout=5).chat_json("s", "u")
+
+        assert "reasoning_effort" not in sent["body"]
+
+    @pytest.mark.parametrize("config", [{"REASONING_EFFORT": ""}, {}])
+    def test_by_default_the_configured_client_sends_nothing(self, sent, settings, config):
+        base = {k: v for k, v in settings.LLM.items() if k != "REASONING_EFFORT"}
+        settings.LLM = {**base, "ENABLED": True, **config}
+
+        llm.get_client().chat_json("s", "u")
+
+        assert "reasoning_effort" not in sent["body"]
+
+    def test_a_set_value_is_sent(self, sent, settings):
+        """gemma4 thinks unless told not to; "none" halves a CPU reading."""
+        settings.LLM = {**settings.LLM, "ENABLED": True, "REASONING_EFFORT": "none"}
+
+        llm.get_client().chat_json("s", "u")
+
+        assert sent["body"]["reasoning_effort"] == "none"
+
+    def test_the_setting_is_empty_when_the_env_is_unset(self, settings):
+        import os
+
+        if "LLM_REASONING_EFFORT" in os.environ:
+            pytest.skip("LLM_REASONING_EFFORT is set in this environment")
+        assert settings.LLM["REASONING_EFFORT"] == ""
+
+
 class TestEngineAnalysis:
     @pytest.fixture
     def engine(self):
