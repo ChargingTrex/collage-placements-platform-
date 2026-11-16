@@ -79,3 +79,16 @@ export function homePathFor(user: User): string {
   if (area === 'company') return '/company'
   return '/student'
 }
+
+/**
+ * Where to go after signing in, given the page that sent us to /login.
+ *
+ * `from` is honoured only inside the new user's own area: after a demo
+ * persona switch, the page that redirected here may belong to another role,
+ * and sending them there would only bounce them again.
+ */
+export function landingPathFor(user: User, from?: string | null): string {
+  const home = homePathFor(user)
+  if (from && from !== '/login' && (from === home || from.startsWith(`${home}/`))) return from
+  return home
+}

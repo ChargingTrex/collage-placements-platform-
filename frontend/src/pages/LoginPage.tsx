@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { ApiError } from '@/api/client'
 import { authApi, type DemoPersona } from '@/api/auth'
-import { homePathFor, useAuth } from '@/auth/AuthContext'
+import { landingPathFor, useAuth } from '@/auth/AuthContext'
 import { AuthLayout } from '@/components/AppShell'
 import { Alert, Button, Field } from '@/components/ui'
 
@@ -56,7 +56,7 @@ export default function LoginPage() {
 
   function landAfterLogin(result: Parameters<typeof signIn>[0]) {
     const user = signIn(result)
-    navigate(from && from !== '/login' ? from : homePathFor(user), { replace: true })
+    navigate(landingPathFor(user, from), { replace: true })
   }
 
   async function handlePasswordLogin(event: FormEvent) {

@@ -104,6 +104,58 @@ describe('one-click demo sign-in', () => {
     expect(localStorage.getItem('pcp.access')).toBe('access-token')
   })
 
+  it.each([
+    ['Student', makeAuthResult(), /hello, aarav mehta/i, '/student'],
+    [
+      'Placement officer',
+      makeAuthResult({
+        roles: ['placement_admin'],
+        prn: null,
+        email: 'pilot.officer@college.edu',
+        full_name: 'Anika Verma',
+      }),
+      /all users/i,
+      '/admin/users',
+    ],
+    [
+      'Acme Tech recruiter',
+      makeAuthResult({
+        roles: ['company_recruiter:c-1'],
+        prn: null,
+        email: 'recruiter@acmetech.example',
+        full_name: 'Priya Raman',
+      }),
+      null,
+      '/company',
+    ],
+  ])(
+    'after a redirect from an admin page, %s lands where that role may go',
+    async (label, result, landmark, expectedPath) => {
+      const user = userEvent.setup()
+      mockApi([
+        HEALTHY,
+        { path: '/api/auth/demo/personas', body: PERSONAS },
+        { path: '/api/auth/demo/login', method: 'POST', body: result },
+        { path: '/api/auth/me', body: result.user },
+        { path: '/api/auth/admin/users/summary', body: { total: 0, by_role: { student: 0, admin: 0, company: 0 }, by_status: {}, schools: [], batches: [] } },
+        { path: '/api/auth/admin/users', body: { count: 0, next: null, previous: null, results: [] } },
+      ])
+      // Signed out on an admin page: the guard sends us to /login with `from`.
+      renderApp('/admin/users')
+      await user.click(
+        await screen.findByRole('button', { name: new RegExp(`sign in as ${label}`, 'i') }),
+      )
+
+      // The nav marks the current page; only the landing area's nav is shown.
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument(),
+      )
+      if (landmark) await waitFor(() => expect(screen.getAllByText(landmark).length).toBeGreaterThan(0))
+      const active = document.querySelector('nav a[aria-current="page"]')
+      expect(active?.getAttribute('href')).toBe(expectedPath)
+    },
+  )
+
   it('shows the server message if the persona is refused', async () => {
     const user = userEvent.setup()
     mockApi([
