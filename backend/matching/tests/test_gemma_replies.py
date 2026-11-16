@@ -156,6 +156,43 @@ class TestStatedFactsMustBeOnThePage:
         )
 
     @pytest.mark.parametrize(
+        "phone, kept",
+        [
+            ("9876543210", True), ("+91 98765 43210", True), ("09876543210", True), ("0091-9876543210", True),
+            ("+44 20 7946 0958", True), ("+1 415 555 0132", True), ("+65 6123 4567", True),
+            ("220200904", False), ("98765 4321", False), ("12345678901", False), ("+91 22020090", False),
+            ("+44 12345", False), ("+44 1234 5678 9012 3456", False), ("44 20 7946 0958", False),
+        ],
+    )
+    def test_a_phone_must_be_phone_shaped(self, phone, kept):
+        """
+        QA-2: the digits being on the page is not enough. Ten digits after
+        India's prefixes, or "+" with another country code and 8-15 digits.
+        """
+        assert llm.drop_unstated_facts({"phones": [phone]}, f"Phone: {phone}")["phones"] == (
+            [phone] if kept else []
+        )
+
+    @pytest.mark.parametrize("key", ["data_engineer", "mechanical_designer"])
+    def test_the_recorded_prn_read_as_a_phone_is_dropped(self, key):
+        """gemma4 returned the 9-digit PRN beside the email as the phone (Sana, Arjun)."""
+        prn = json.loads(recorded("no_thinking", key)["calls"][0]["content"])["phones"]
+        assert prn in (["220200904"], ["220200909"])
+
+        assert replay("no_thinking", key).data["phones"] == []
+
+    @pytest.mark.parametrize("key, prn", [("frontend_intern", "220200905"), ("marketing_executive", "220200910")])
+    def test_the_prn_beside_the_email_is_not_a_phone(self, key, prn):
+        """The same reading as re-analysis gave for Kabir and Ishita, built from their sample text."""
+        assert prn in SAMPLES[key].text
+        client = FakeLLMClient([resume_reply(phones=[prn])])
+
+        assert llm.parse_resume_facts(SAMPLES[key].text, client=client, today=TODAY).data["phones"] == []
+
+    def test_a_recorded_real_phone_is_kept(self):
+        assert replay("no_thinking", "civil_fresher").data["phones"] == ["+91 98220 11223"]
+
+    @pytest.mark.parametrize(
         "phone, written, kept",
         [
             ("+91 98765 43210", "Mobile 09876543210", True),
