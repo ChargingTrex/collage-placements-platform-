@@ -12,6 +12,12 @@ facts the LLM would return. A role that already has a category is skipped.
     python manage.py seed_demo
     python manage.py seed_demo --reset          # wipe seeded data first
     python manage.py seed_demo --with-students  # also four populated students
+
+It also seeds postings for both demo companies in every status, with
+salaries. With --with-students the demo students apply to the open (and
+since-closed) ones, so there are applications in every status with their
+events, and the open postings notify the students they are open to.
+Everything goes through the live services, and a re-run changes nothing.
 """
 
 import datetime
@@ -202,6 +208,7 @@ class Command(BaseCommand):
             self.stderr.write(f"  row {error.row} ({error.prn}): {error.errors}")
 
         demo_students = self._seed_students() if options["with_students"] else []
+        self._seed_opportunities(demo_students)
 
         self.stdout.write("")
         self.stdout.write("Sign in with:")
@@ -349,6 +356,131 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Demo students: {len(shown)} with full profiles."))
         return shown
+
+    def _seed_opportunities(self, demo_students):
+        """Postings in every status for both companies, then the applications."""
+        from accounts.models import Company
+        from core.demo_opportunities import DEMO_OPPORTUNITIES
+        from notifications.services import notify_new_opportunity
+        from opportunities import services
+        from opportunities.models import Application, Opportunity
+        from profiles.models import StudentProfile, slugify_skill
+
+        admin = User.objects.filter(role=Role.ADMIN, email=ADMINS[0][0]).first()
+        companies = [Company.objects.get(name=name) for name, *_ in COMPANIES]
+        recruiters = [User.objects.get(email=email) for _, _, email, _, _ in COMPANIES]
+        today = datetime.date.today()
+        created = applied = 0
+        postings = []
+
+        for spec in DEMO_OPPORTUNITIES:
+            company = companies[spec["company"]]
+            salary = spec["salary"]
+            status = spec["status"]
+            opportunity = Opportunity.objects.filter(company=company, title=spec["title"]).first()
+            if opportunity is None:
+                opportunity = Opportunity.objects.create(
+                    company=company, title=spec["title"], description=spec["description"],
+                    role_type=spec["role_type"], location=spec["location"],
+                    openings=spec["openings"],
+                    required_skills=[slugify_skill(n) for n in spec["required_skills"]],
+                    eligible_departments=spec["eligible_departments"],
+                    min_cgpa=spec["min_cgpa"],
+                    min_experience_years=spec["min_experience_years"],
+                    required_education_levels=spec["required_education_levels"],
+                    salary_disclosed=salary is not None,
+                    salary_min=salary[0] if salary else None,
+                    salary_max=salary[1] if salary else None,
+                    salary_period=salary[2] if salary else "",
+                    deadline=today + datetime.timedelta(days=spec["deadline_days"]),
+                    created_by=recruiters[spec["company"]],
+                    status=status,
+                )
+                created += 1
+                self._set_status(opportunity, status, spec, admin)
+            elif status == "open" and opportunity.deadline < today:
+                # A database seeded long ago: keep the demo's open postings open.
+                opportunity.deadline = today + datetime.timedelta(days=spec["deadline_days"])
+                Opportunity.objects.filter(pk=opportunity.pk).update(deadline=opportunity.deadline)
+            postings.append((spec, opportunity))
+
+        by_prn = {
+            p.student.prn: p
+            for p in StudentProfile.objects.select_related("user", "student")
+            if p.has_resume
+        }
+        for spec, opportunity in postings:
+            for prn, path in spec["apps"]:
+                profile = by_prn.get(prn)
+                if profile is None or Application.objects.filter(
+                    opportunity=opportunity, profile=profile
+                ).exists():
+                    continue
+                with self._temporarily_open(opportunity, today):
+                    application = services.apply(opportunity, profile, profile.user)
+                applied += 1
+                for to in path:
+                    if to == "withdrawn":
+                        services.withdraw(application, profile.user)
+                    else:
+                        services.change_status(
+                            application, to, recruiters[spec["company"]],
+                            "Seeded demo move.",
+                        )
+
+        # Trigger 1 for the open postings. Unique per (student, posting), so a
+        # re-run adds nothing.
+        notified = sum(
+            notify_new_opportunity(o)
+            for _, o in postings if o.status == Opportunity.Status.OPEN
+        ) if demo_students else 0
+        self.stdout.write(self.style.SUCCESS(
+            f"Opportunities: {created} created ({len(postings)} in all), "
+            f"{applied} application(s), {notified} notification(s)."
+        ))
+
+    @staticmethod
+    def _set_status(opportunity, status, spec, admin):
+        """Land a freshly created posting in its demo status, with who and when."""
+        from django.utils import timezone
+
+        from opportunities.models import Opportunity
+
+        fields = {}
+        if status in {"pending_review", "open", "closed", "rejected"}:
+            fields["submitted_at"] = timezone.now()
+        if status in {"open", "closed"}:
+            fields.update(approved_by=admin, approved_at=timezone.now())
+        if status == "rejected":
+            fields["rejection_reason"] = spec.get("rejection_reason", "")
+        Opportunity.objects.filter(pk=opportunity.pk).update(**fields)
+        for name, value in fields.items():
+            setattr(opportunity, name, value)
+
+    @staticmethod
+    def _temporarily_open(opportunity, today):
+        from contextlib import contextmanager
+
+        from opportunities.models import Opportunity
+
+        @contextmanager
+        def window():
+            before = (opportunity.status, opportunity.deadline)
+            Opportunity.objects.filter(pk=opportunity.pk).update(
+                status=Opportunity.Status.OPEN, deadline=today + datetime.timedelta(days=1)
+            )
+            opportunity.status, opportunity.deadline = Opportunity.Status.OPEN, (
+                today + datetime.timedelta(days=1)
+            )
+            try:
+                yield
+            finally:
+                Opportunity.objects.filter(pk=opportunity.pk).update(
+                    status=before[0], deadline=before[1]
+                )
+                opportunity.status, opportunity.deadline = before
+
+        return window()
 
     def _seed_categories(self):
         taken = set()

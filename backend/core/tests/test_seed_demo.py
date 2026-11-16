@@ -118,3 +118,67 @@ def test_re_seeding_keeps_the_pilot_officers_admin_id():
     issued = User.objects.get(email="pilot.officer@college.edu").admin_id
     seed()
     assert User.objects.get(email="pilot.officer@college.edu").admin_id == issued
+
+
+# --- opportunities, applications, notifications (Phase B) ---------------------
+
+
+def test_postings_exist_in_every_status_for_both_companies_without_students():
+    from accounts.models import Company
+    from opportunities.models import Opportunity
+
+    seed()
+    for company in Company.objects.all():
+        mine = Opportunity.objects.filter(company=company)
+        assert set(mine.values_list("status", flat=True)) == {s.value for s in Opportunity.Status}
+    assert Opportunity.objects.filter(status="open", salary_disclosed=True, salary_min__isnull=False).exists()
+    assert Opportunity.objects.filter(status="open", salary_disclosed=False, salary_min__isnull=True).exists()
+    assert not Opportunity.objects.filter(status__in=["open", "closed"], approved_by=None).exists()
+
+
+def test_students_have_applications_in_every_status_with_events_and_notifications():
+    from notifications.models import Notification
+    from opportunities.models import Application, ApplicationEvent
+
+    seed("--with-students")
+    assert {a.status for a in Application.objects.all()} == {s.value for s in Application.Status}
+    for application in Application.objects.all():
+        events = list(application.events.all())
+        assert events[0].from_status == "" and events[0].to_status == "applied"
+        assert events[-1].to_status == application.status
+        assert application.resume_snapshot and application.cgpa_at_apply is not None
+    assert Notification.objects.exists()
+    assert ApplicationEvent.objects.count() > Application.objects.count()
+
+
+def test_seeded_postings_are_visible_through_the_api():
+    seed("--with-students")
+    student = login("aarav.mehta@college.edu", "StudentPass!234")
+    feed = student.get("/api/opportunities/feed").json()
+    assert {r["title"] for r in feed["results"]} >= {"Backend Engineer", "Data Analyst"}
+    mine = student.get("/api/opportunities/applications").json()
+    assert mine["count"] >= 3
+    unread = student.get("/api/notifications/", {"unread": "true"}).json()
+    assert unread["count"] >= 1
+
+
+def test_re_seeding_changes_no_opportunity_application_event_notification_or_audit_row():
+    from core.models import AuditLog
+    from notifications.models import Notification
+    from opportunities.models import Application, ApplicationEvent, Opportunity
+
+    seed("--with-students")
+    counts = lambda: (  # noqa: E731
+        Opportunity.objects.count(), Application.objects.count(),
+        ApplicationEvent.objects.count(), Notification.objects.count(), AuditLog.objects.count(),
+        sorted(Opportunity.objects.values_list("status", "deadline")),
+        sorted(Application.objects.values_list("status", "score")),
+    )
+    first = counts()
+    seed("--with-students")
+    assert counts() == first
+
+
+def test_applying_to_one_company_never_shows_a_shortlisted_only_student_to_the_other():
+    seed("--with-students")
+    assert SHORTLISTED not in visible_prns(login(*COMPANY_B))
