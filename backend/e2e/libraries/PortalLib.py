@@ -227,7 +227,8 @@ class PortalLib:
                 extra, ok = info.extra, False
                 while len(extra) >= 4:
                     header, size = int.from_bytes(extra[:2], "little"), int.from_bytes(extra[2:4], "little")
-                    if header == 0x9901 and size >= 7 and extra[4 + 6] == 3:
+                    # data: version (2), vendor "AE" (2), strength (1), real method (2)
+                    if header == 0x9901 and size >= 7 and extra[4 + 4] == 3:
                         ok = True
                     extra = extra[4 + size:]
                 if not ok:
