@@ -17,7 +17,7 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
 - [x] F3: JSON check. **Evidence:** `response_format: json_object` honoured, `content` is valid JSON in both modes, and reasoning arrives in a separate `reasoning` field. `think: false` does **not** disable thinking on the OpenAI-compatible API; `reasoning_effort: "none"` does. *Verifier, 2026-11-16:* confirmed from `gemma_raw.json` for the thinking-on mode: `content` parses as JSON with the 12 expected keys, and `message.reasoning` is a separate 2460-character field. *Verifier, later the same day:* the ten recorded `none`-mode replies all have `content` that parses as JSON with the 12 keys, no `reasoning` field, and 296-472 completion tokens against 1027 with thinking on, so `reasoning_effort: "none"` does turn thinking off. Still the session's claim only: that `think: false` does not (no recorded reply; the app does not use it).
 - [ ] F4: MongoDB up. **owner: user (needs U3)**
 - [ ] F5: Proxy check, Netlify to tunnel to Mac. **owner: user (needs U1, U2)**
-- [ ] F6: Gate. **Pass when:** F1-F5 are green, or each red item has a recorded fallback.
+- [x] F6: Gate. **Pass when:** F1-F5 are green, or each red item has a recorded fallback. **Evidence:** F1-F3 are ticked; F4 and F5 are red (owner: user) and each has its fallback recorded below, and both fallbacks are what the demo now runs on (V1-local; `localhost`).
   - F4 fallback (recorded): the local vector store with real nomic embeddings, V1-local.
   - F5 fallback (recorded): present from `localhost`; the public link is shown only if U1 and U2 land.
 
@@ -25,28 +25,28 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
 
 ## Saturday gate
 
-- [ ] S1: The full backend suite is green with the AI off. *Verifier, 21:18 IST: with the demo `.env` now in the worktree, three tests fail unless `JD_READING_BUDGET_SECONDS=3` is set (see V7).* **Pass when:** `python -m pytest` exits 0 from `backend/`, with the counts recorded. *Not ticked yet: the verifier has no clean full run of its own. Its one full run (on a moving tree, load 200-550, disk full) gave 1036 passed, 1 skipped, 3 errors in 76 min and is discarded. The orchestrating session reports 1088 passed, 1 skipped on `7a0178b` with `LLM_ENABLED=true` pointed at a dead port. The `_offline_ai` guard (`2a7da8d`) was checked by the verifier on the AI test files: 107 passed with the LLM on at a dead port; `VECTOR_STORE_BACKEND=mongo` 114 passed, 1 skipped. Known limit: a `MONGO_URI` in the environment or `.env` still runs `test_real_mongo_round_trip`, which fails if MongoDB is down.*
+- [x] S1: The full backend suite is green with the AI off. **Pass when:** `python -m pytest` exits 0 from `backend/`, with the counts recorded. **Evidence:** verifier run on `004ff6f`, 2026-11-16 21:42-21:52 IST, demo `.env` present: `python -m pytest` from `backend/` gave 1267 passed, 2 skipped, exit 0, in 9 m 42 s; `makemigrations --check --dry-run`: no changes. The demo `.env` turns the LLM on; the conftest guard keeps the suite offline. The orchestrating session's run on the same commit gave the same counts. *History: the verifier's earlier full run (1036 passed, 3 errors, 76 min) was on a moving tree with the disk full and is discarded.*
 - [x] S2: G2-V5 results recorded in `SMOKE_TESTS.md`. **Evidence:** read by the verifier on `abacc6f`: "Gemma lane G2-G4" and "Weekend demo, stream V" (V1-local, V3, V4, V5, V6). V1 and V2 (MongoDB) are owner: user and not run.
-- [ ] S3: Resume-intelligence open items 1.1-1.3 ticked, or each item's remaining part noted as owner: user.
+- [ ] S3: Resume-intelligence open items 1.1-1.3 ticked, or each item's remaining part noted as owner: user. *Not ticked: `open-items/RESUME_INTELLIGENCE_OPEN_ITEMS.md` still shows 1.1, 1.2 and 1.3 unticked with no note (lines 207-209). The work is done as far as it can be: 1.3 is V5; 1.1's Ollama half is G2-G4 and V1-local to V6; 1.1's MongoDB half and 1.2 (`pymongo` pin) need Docker, owner: user (U3). **Tick when** that file says so. It is not a checklist file, so the verifier has not edited it.*
 
 ## Sunday gate
 
-- [ ] N1: P1-P6 and H1-H5 verified by the verifier.
-- [ ] N2: The full backend and frontend suites are green, including the frontend typecheck and build.
+- [x] N1: P1-P6 and H1-H5 verified by the verifier. **Evidence:** P1-P6 ticked in `P-pilot-login.md`; H1, H2 and H5 (local half) ticked in `H-hosting.md` from the verifier's own `serve_demo` run. H3, H4 and H5's public-link re-check are owner: user and stay open there.
+- [x] N2: The full backend and frontend suites are green, including the frontend typecheck and build. **Evidence:** backend: verifier run on `004ff6f`, 2026-11-16 21:42-21:52 IST, demo `.env` present: `python -m pytest` from `backend/` gave 1267 passed, 2 skipped, exit 0, in 9 m 42 s; `makemigrations --check --dry-run`: no changes. Frontend: verifier run on `004ff6f`, 21:53 IST: `npm test` 20 files, 165 passed; `npm run typecheck` exit 0; `npm run build` exit 0.
 - [x] N3: The E2E demo suite passes against a local server. **Evidence:** verifier run on `cb6944f`, 2026-11-16 21:00 IST: 111/111 passed, 1 skipped (`--live-ai`), twice and identical, on a throwaway DB (see E1, E2). Re-run after H and V merge.
 - [ ] N4: R1, demo script rehearsed twice. **owner: user**
 - [ ] N5: R2, backup video recorded. **owner: user**
-- [ ] N6: R3, clean demo database snapshot taken (SQLite file, plus the MongoDB volume if used).
+- [ ] N6: R3, clean demo database snapshot taken (SQLite file, plus the MongoDB volume if used). *Not ticked: the verifier has seen no snapshot. The demo state to copy is `backend/db.sqlite3`, `backend/media/`, `backend/.cache/` (the pre-read JD, which expires a day after it was read unless `read_jd --ttl` extends it), `.env` and `DEMO_LOGINS.md`, all in the integration worktree. No MongoDB volume: the local store is in the SQLite file.*
 
 ## Monday readiness
 
-- [ ] M1: Demo-ready state on `weekend-demo`:
+- [x] M1: Demo-ready state on `weekend-demo`:
   - P merged
   - seeded
   - persona student pre-analysed with Gemma
   - JD search returns ranked students
 
-  *Progress, verifier, 2026-11-16 21:05 IST:* P merged (`0e6503a`, fixes `7a0178b`, `ac83a73`); demo DB seeded (284 accounts); the persona student and three more pre-analysed with Gemma (see P6). JD search on real embeddings now returns ranked students on the demo DB (V4, V6; 21:21 IST), so all four parts of M1 are in place on `abacc6f`. M1 is ticked at the freeze, after H merges and the final suite run. The DB already holds 4 `nomic-embed-text` vectors of 768 dimensions and 4 role categories.
-- [ ] M2: The morning-of checklist in `WEEKEND_DEMO_PLAN.md` can be followed as written; commands checked.
+  *Progress, verifier, 2026-11-16 21:05 IST:* P merged (`0e6503a`, fixes `7a0178b`, `ac83a73`); demo DB seeded (284 accounts); the persona student and three more pre-analysed with Gemma (see P6). JD search on real embeddings now returns ranked students on the demo DB (V4, V6; 21:21 IST), so all four parts of M1 are in place on `abacc6f`. Ticked on `004ff6f` after H merged and the final suite run (S1, N2). The DB already holds 4 `nomic-embed-text` vectors of 768 dimensions and 4 role categories.
+- [ ] M2: The morning-of checklist in `WEEKEND_DEMO_PLAN.md` can be followed as written; commands checked. *Not ticked: it cannot be followed as written. It says "MongoDB is up" (the demo uses the local store), runs the backend only through `serve_demo` and a tunnel (the demo itself, with the persona buttons, runs on a DEBUG server on `localhost`; `serve_demo` turns the buttons off), and does not mention the JD pre-read or its one-day expiry. Checked by the verifier: `scripts/serve_demo.sh` starts and answers; `docs/HOSTING.md` has the per-session steps. **Tick when** the plan's list matches what will be run.*
 - [ ] M3: The merge freeze is respected. No merges in the last hour before the demo.
 - [ ] M4: The Mac is quiet before the Gemma warm-up. **Pass when:** no agent sessions or test runs are active, `uptime` load is below the core count, swap is not growing, and at least 5 GB of disk is free. *Added by the verifier: at 12:00 on 2026-11-16, with the builders running, load was 554, swap 20.2 of 20.7 GB and free disk 0.5 GB; a full backend run took 76 minutes and a pytest run lost its output to a full disk. F2's timings do not hold in that state.*
