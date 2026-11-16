@@ -56,7 +56,11 @@ __all__ = [
 ]
 
 #: Sent with every prompt. Long resumes are cut here rather than overflowing
-#: an 8k context and having the model silently drop the end.
+#: the context. Ollama runs gemma4:e4b with 4,096 tokens for prompt and reply
+#: together. Measured 2026-11-16 with reasoning off: a 12,000-character
+#: one-person resume took 3,041 prompt tokens and a 380-token reply, so about
+#: 650 tokens were left. A reply crowded with entries can run out; chat_json
+#: then raises on finish_reason "length" and the engine falls back to regex.
 MAX_INPUT_CHARS = 12_000
 
 
