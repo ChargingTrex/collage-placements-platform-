@@ -115,9 +115,15 @@ class LLMClient:
             payload["reasoning_effort"] = self.reasoning_effort
         body = self._post("/chat/completions", payload)
         try:
-            return body["choices"][0]["message"]["content"] or ""
+            choice = body["choices"][0]
+            content = choice["message"]["content"] or ""
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMUnavailable(f"Unexpected chat response shape: {body!r:.200}") from exc
+        if choice.get("finish_reason") == "length":
+            # The context filled up mid-reply. The JSON is cut off, and a retry
+            # (the same prompt plus the error) would be longer still: give up.
+            raise LLMUnavailable("The model's reply was cut off at the context limit.")
+        return content
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """One embedding per text, from `embed_model`."""

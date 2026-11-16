@@ -366,6 +366,35 @@ class TestClient:
         assert seen["body"]["response_format"] == {"type": "json_object"}
 
 
+class TestCutOffReply:
+    """
+    A reply that ran out of context is not retried.
+
+    Measured 2026-11-16: a 12,000-character resume took 3,499 prompt tokens,
+    so gemma4:e4b's 4,096-token context left 597 for the reply, which
+    stopped mid-JSON with finish_reason "length".
+    """
+
+    def test_it_raises_without_a_second_call(self, monkeypatch):
+        calls = []
+
+        def fake_post(url, json, timeout):
+            calls.append(json)
+            return httpx.Response(
+                200,
+                json={"choices": [{"message": {"content": '{"full_name": "A'}, "finish_reason": "length"}]},
+                request=httpx.Request("POST", url),
+            )
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        client = llm.LLMClient("http://ollama/v1", "m", "e", timeout=5)
+
+        with pytest.raises(llm.LLMUnavailable, match="cut off"):
+            llm.parse_resume_facts("Aarav Mehta", client=client)
+
+        assert len(calls) == 1
+
+
 class TestReasoningEffort:
     """G0: `reasoning_effort` goes out only when LLM_REASONING_EFFORT is set."""
 
