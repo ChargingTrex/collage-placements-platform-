@@ -12,7 +12,8 @@ the search uses, and feeds the role categories exactly as a recruiter's
 search would (once per JD). Pasting the same text into the search afterwards
 is then a cache hit: instant, with the model's reading and its category.
 
-The text is trimmed the way the search endpoint trims `jd_text`. The cache
+A leading UTF-8 BOM (Notepad) is dropped, then the text is trimmed the way
+the search endpoint trims `jd_text`. The cache
 must be shared with the server (`CACHE_BACKEND=file`); with the default
 per-process memory cache the server never sees this reading. Profiles are
 re-sorted into the categories afterwards (`recategorise`).
@@ -56,11 +57,12 @@ class Command(BaseCommand):
             raw = (options.get("stdin") or sys.stdin).read()
         else:
             try:
-                with open(path, encoding="utf-8") as handle:
+                with open(path, encoding="utf-8-sig") as handle:  # drops a Notepad BOM
                     raw = handle.read()
             except OSError as exc:
                 raise CommandError(f"Cannot read {path}: {exc}") from exc
-        text = raw.strip()  # as the search serializer trims jd_text
+        # A BOM is not whitespace to strip(), and a browser never sends one.
+        text = raw.lstrip("\ufeff").strip()  # then as the search serializer trims jd_text
         if not JD_MIN_CHARS <= len(text) <= JD_MAX_CHARS:
             raise CommandError(f"A JD must be {JD_MIN_CHARS} to {JD_MAX_CHARS} characters; this is {len(text)}.")
 

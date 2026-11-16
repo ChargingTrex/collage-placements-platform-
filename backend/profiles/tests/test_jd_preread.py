@@ -79,6 +79,24 @@ class TestReadJdCommand:
 
         assert cache.get(llm.jd_cache_key(SAMPLE_JOB_DESCRIPTION.strip(), client.model)) is not None
 
+    def test_a_notepad_bom_is_dropped_from_a_file(self, llm_on, tmp_path):
+        """Notepad saves UTF-8 with U+FEFF first; strip() keeps it, and the
+        browser never sends it, so the key would never match."""
+        client = llm_on()
+        path = tmp_path / "jd.txt"
+        path.write_bytes(b"\xef\xbb\xbf" + SAMPLE_JOB_DESCRIPTION.encode("utf-8"))
+
+        call_command("read_jd", str(path))
+
+        assert cache.get(llm.jd_cache_key(SAMPLE_JOB_DESCRIPTION, client.model)) is not None
+
+    def test_a_bom_is_dropped_from_stdin(self, llm_on):
+        client = llm_on()
+
+        call_command("read_jd", "-", stdin=io.StringIO("﻿" + SAMPLE_JOB_DESCRIPTION))
+
+        assert cache.get(llm.jd_cache_key(SAMPLE_JOB_DESCRIPTION, client.model)) is not None
+
     def test_it_runs_without_the_live_budget(self, llm_on, settings):
         """A CPU model takes a minute: the pre-read must wait for it."""
         settings.RESUME_ANALYSIS = {**settings.RESUME_ANALYSIS, "TIME_BUDGET_SECONDS": 0.0}
