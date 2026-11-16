@@ -47,6 +47,24 @@ export const authApi = {
     api.post<AuthResult>('/api/auth/otp/login', { identifier, code }, { auth: false }),
 
   me: () => api.get<User>('/api/auth/me'),
+
+  /**
+   * The one-click demo personas. Answers only on a local demo server (DEBUG
+   * and DEMO_MODE); everywhere else, including the public link, it is a 404.
+   */
+  demoPersonas: () => api.get<{ personas: DemoPersona[] }>('/api/auth/demo/personas', { auth: false }),
+
+  demoLogin: (persona: string) =>
+    api.post<AuthResult>('/api/auth/demo/login', { persona }, { auth: false }),
+}
+
+export interface DemoPersona {
+  key: string
+  label: string
+  description: string
+  role: 'student' | 'admin' | 'company'
+  /** What the persona would type to sign in: an email, or the student's PRN. */
+  identifier: string
 }
 
 export function storeSession(result: AuthResult): User {
