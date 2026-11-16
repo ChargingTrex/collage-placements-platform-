@@ -1,0 +1,38 @@
+{
+ "key": "operations_multi_job",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "total_seconds": 310.9,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 310.8,
+   "content": "{\n  \"full_name\": \"Farhan Shaikh\",\n  \"emails\": [\n    \"farhan.shaikh@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"BBA\",\n      \"level\": \"UG\",\n      \"field\": \"Supply Chain Management\",\n      \"institution\": null,\n      \"start\": \"2020\",\n      \"end\": null,\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Operations Analyst\",\n      \"organization\": \"Meridian Freight\",\n      \"kind\": \"full_time\",\n      \"start\": \"2021-01\",\n      \"end\": \"2022-12\",\n      \"is_current\": false,\n      \"summary\": \"Planned weekly truck allocation across four regional depots.\"\n    },\n    {\n      \"role\": \"Supply Chain Consultant\",\n      \"organization\": \"Northwind Traders\",\n      \"kind\": \"part_time\",\n      \"start\": \"2022-06\",\n      \"end\": \"2023-06\",\n      \"is_current\": false,\n      \"summary\": \"Redesigned the reorder policy for fast-moving retail goods.\"\n    },\n    {\n      \"role\": \"Inventory Planning Associate\",\n      \"organization\": \"Cobalt Retail\",\n      \"kind\": null,\n      \"start\": \"2023-09\",\n      \"end\": \"2024-02\",\n      \"is_current\": false,\n      \"summary\": \"Ran cycle counts and cut stock-outs in two stores.\"\n    }\n  ],\n  \"skills\": [\n    \"Inventory planning\",\n    \"vendor negotiation\",\n    \"demand forecasting\",\n    \"Excel\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}",
+   "body": {
+    "id": "chatcmpl-582",
+    "object": "chat.completion",
+    "created": 1794840015,
+    "model": "gemma4:e4b",
+    "system_fingerprint": "fp_ollama",
+    "choices": [
+     {
+      "index": 0,
+      "message": {
+       "role": "assistant",
+       "content": "{\n  \"full_name\": \"Farhan Shaikh\",\n  \"emails\": [\n    \"farhan.shaikh@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": null,\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"BBA\",\n      \"level\": \"UG\",\n      \"field\": \"Supply Chain Management\",\n      \"institution\": null,\n      \"start\": \"2020\",\n      \"end\": null,\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Operations Analyst\",\n      \"organization\": \"Meridian Freight\",\n      \"kind\": \"full_time\",\n      \"start\": \"2021-01\",\n      \"end\": \"2022-12\",\n      \"is_current\": false,\n      \"summary\": \"Planned weekly truck allocation across four regional depots.\"\n    },\n    {\n      \"role\": \"Supply Chain Consultant\",\n      \"organization\": \"Northwind Traders\",\n      \"kind\": \"part_time\",\n      \"start\": \"2022-06\",\n      \"end\": \"2023-06\",\n      \"is_current\": false,\n      \"summary\": \"Redesigned the reorder policy for fast-moving retail goods.\"\n    },\n    {\n      \"role\": \"Inventory Planning Associate\",\n      \"organization\": \"Cobalt Retail\",\n      \"kind\": null,\n      \"start\": \"2023-09\",\n      \"end\": \"2024-02\",\n      \"is_current\": false,\n      \"summary\": \"Ran cycle counts and cut stock-outs in two stores.\"\n    }\n  ],\n  \"skills\": [\n    \"Inventory planning\",\n    \"vendor negotiation\",\n    \"demand forecasting\",\n    \"Excel\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+      },
+      "finish_reason": "stop"
+     }
+    ],
+    "usage": {
+     "prompt_tokens": 625,
+     "prompt_tokens_details": {
+      "cached_tokens": 98
+     },
+     "completion_tokens": 472,
+     "total_tokens": 1097
+    }
+   }
+  }
+ ]
+}

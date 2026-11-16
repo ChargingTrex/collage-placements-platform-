@@ -56,7 +56,11 @@ __all__ = [
 ]
 
 #: Sent with every prompt. Long resumes are cut here rather than overflowing
-#: an 8k context and having the model silently drop the end.
+#: the context. Ollama runs gemma4:e4b with 4,096 tokens for prompt and reply
+#: together. Measured 2026-11-16 with reasoning off: a 12,000-character
+#: one-person resume took 3,041 prompt tokens and a 380-token reply, so about
+#: 650 tokens were left. A reply crowded with entries can run out; chat_json
+#: then raises on finish_reason "length" and the engine falls back to regex.
 MAX_INPUT_CHARS = 12_000
 
 
@@ -70,11 +74,22 @@ class LLMUnavailable(Exception):
 class LLMClient:
     """A thin client for an OpenAI-compatible chat + embeddings API."""
 
-    def __init__(self, base_url: str, model: str, embed_model: str, timeout: float):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        embed_model: str,
+        timeout: float,
+        *,
+        reasoning_effort: str = "",
+    ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.embed_model = embed_model
         self.timeout = timeout
+        #: "none", "low", ... for a thinking model. Empty sends nothing, so a
+        #: server that does not know the field never sees it.
+        self.reasoning_effort = reasoning_effort
 
     def _post(self, path: str, payload: dict) -> dict:
         import httpx  # imported lazily: optional at runtime
@@ -91,22 +106,28 @@ class LLMClient:
 
     def chat_json(self, system: str, user: str) -> str:
         """The model's reply, asked for as a JSON object. Returned unparsed."""
-        body = self._post(
-            "/chat/completions",
-            {
-                "model": self.model,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-            },
-        )
+        payload = {
+            "model": self.model,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
+        body = self._post("/chat/completions", payload)
         try:
-            return body["choices"][0]["message"]["content"] or ""
+            choice = body["choices"][0]
+            content = choice["message"]["content"] or ""
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMUnavailable(f"Unexpected chat response shape: {body!r:.200}") from exc
+        if choice.get("finish_reason") == "length":
+            # The context filled up mid-reply. The JSON is cut off, and a retry
+            # (the same prompt plus the error) would be longer still: give up.
+            raise LLMUnavailable("The model's reply was cut off at the context limit.")
+        return content
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """One embedding per text, from `embed_model`."""
@@ -131,6 +152,7 @@ def get_client() -> LLMClient:
         model=config["MODEL"],
         embed_model=config["EMBED_MODEL"],
         timeout=config["TIMEOUT_SECONDS"],
+        reasoning_effort=config.get("REASONING_EFFORT", ""),
     )
 
 
@@ -599,10 +621,16 @@ def _document(text: str) -> str:
 def _ask(client: LLMClient, system: str, text: str, normalise, serializer_class) -> dict:
     """
     One question, validated; one retry with the errors; then LLMUnavailable.
+
+    A client may veto the retry with `may_retry()`: the live analysis path
+    does when what is left of its time budget could not fit another call,
+    so a bad first reply falls back at once instead of timing out later.
     """
     prompt = _document(text)
     errors: str | None = None
     for attempt in (1, 2):
+        if attempt == 2 and not getattr(client, "may_retry", lambda: True)():
+            raise LLMUnavailable(f"The model's reply was invalid and there is no time to retry: {errors}")
         user = prompt if errors is None else (
             f"{prompt}\n\nYour previous reply was invalid: {errors}\n"
             "Reply again with corrected JSON only."
@@ -634,6 +662,103 @@ def _plain(value):
     return value
 
 
+# --- grounding: a stated fact must be on the page ------------------------------
+# The admin's verification flags are built from the date of birth, age,
+# phones and emails. A model asked for "YYYY-MM-DD" will sometimes fill one in
+# for a resume that states none (gemma4 read a roll number "220200901" as
+# "2002-09-01"), and an invented DOB puts a bogus mismatch flag on screen. So
+# each of these is kept only when the resume itself writes it.
+
+_MONTH_WORD = r"(?P<mon>[A-Za-z]{3,9})\.?"
+_ORDINAL = r"(?:st|nd|rd|th)?"
+_PAGE_DATES = [
+    # 2002-09-01, 2002/9/1, 2002.09.01
+    re.compile(r"(?<!\d)(?P<y>(?:19|20)\d{2})[-/.](?P<m>\d{1,2})[-/.](?P<d>\d{1,2})(?!\d)"),
+    # 01/09/2002, 1-9-2002, 01.09.2002, 01 09 2002: day first, and month first too
+    re.compile(r"(?<!\d)(?P<a>\d{1,2})[-/. ](?P<b>\d{1,2})[-/. ](?P<y>(?:19|20)\d{2})(?!\d)"),
+    # 1 September 2002, 1st Sep, 2002, 01-Sep-2002
+    re.compile(rf"(?<!\d)(?P<d>\d{{1,2}}){_ORDINAL}[\s\-,]{{1,3}}(?:of\s+)?{_MONTH_WORD}[\s\-,']{{1,3}}(?P<y>(?:19|20)\d{{2}})(?!\d)", re.IGNORECASE),
+    # September 1, 2002
+    re.compile(rf"{_MONTH_WORD}\s{{1,3}}(?P<d>\d{{1,2}}){_ORDINAL},?\s{{1,3}}(?P<y>(?:19|20)\d{{2}})(?!\d)", re.IGNORECASE),
+]
+
+
+def _dates_on_page(text: str) -> set[str]:
+    """Every full calendar date the text writes, as ISO strings."""
+    found: set[str] = set()
+
+    def add(year, month, day):
+        try:
+            found.add(datetime.date(int(year), int(month), int(day)).isoformat())
+        except ValueError:
+            pass
+
+    for pattern in _PAGE_DATES:
+        for match in pattern.finditer(text):
+            group = match.groupdict()
+            if group.get("mon") is not None:
+                month = _MONTHS.get(group["mon"][:3].lower())
+                if month:
+                    add(group["y"], month, group["d"])
+            elif group.get("a") is not None:
+                add(group["y"], group["b"], group["a"])  # 01/09/2002, day first
+                add(group["y"], group["a"], group["b"])  # 09/01/2002, month first
+            else:
+                add(group["y"], group["m"], group["d"])
+    return found
+
+
+_PHONE_LIKE = re.compile(r"\+?\d[\d\s\-().]{5,}\d")
+
+
+def _phone_on_page(phone: str, text: str) -> bool:
+    """The number's digits are written as one number, give or take a country code."""
+    digits = re.sub(r"\D", "", phone or "")
+    if len(digits) < 7:
+        return False
+    for match in _PHONE_LIKE.finditer(text):
+        written = re.sub(r"\D", "", match.group(0))
+        if written == digits or (len(digits) >= 10 and len(written) >= 10 and (
+            written.endswith(digits[-10:]) and digits.endswith(written[-10:])
+        )):
+            return True
+    return False
+
+
+def _email_on_page(email: str, text: str) -> bool:
+    email = (email or "").strip().lower().removeprefix("mailto:")
+    return bool(email) and email in text.lower()
+
+
+def _age_on_page(age: int, text: str) -> bool:
+    return re.search(rf"(?<![\d.]){age}(?![\d.])", text) is not None
+
+
+def drop_unstated_facts(data: dict, text: str) -> dict:
+    """
+    The reply with any date of birth, age, phone or email the resume does
+    not write taken out. Names of what was dropped are logged, never values.
+    """
+    data = dict(data)
+    dropped = []
+    if data.get("date_of_birth") and data["date_of_birth"] not in _dates_on_page(text):
+        data["date_of_birth"] = None
+        dropped.append("date_of_birth")
+    if data.get("age") is not None and not _age_on_page(data["age"], text):
+        data["age"] = None
+        dropped.append("age")
+    phones = [phone for phone in data.get("phones") or [] if _phone_on_page(phone, text)]
+    if len(phones) != len(data.get("phones") or []):
+        dropped.append("phones")
+    emails = [email for email in data.get("emails") or [] if _email_on_page(email, text)]
+    if len(emails) != len(data.get("emails") or []):
+        dropped.append("emails")
+    data["phones"], data["emails"] = phones, emails
+    if dropped:
+        logger.info("Dropped model-stated facts the resume does not write: %s", ", ".join(dropped))
+    return data
+
+
 def parse_resume_facts(
     text: str,
     client: LLMClient | None = None,
@@ -641,12 +766,14 @@ def parse_resume_facts(
 ) -> ResumeFacts:
     """Read a resume with the model. Raises LLMUnavailable to send callers to regex."""
     client = client or get_client()
+    page = (text or "")[:MAX_INPUT_CHARS]  # what the model was shown
     data = _plain(_ask(client, RESUME_SYSTEM_PROMPT, text, _normalise_resume_reply, ResumeFactsSerializer))
+    data = drop_unstated_facts(data, page)
     levels = {entry["level"] for entry in data["education"] if entry.get("level")}
     return ResumeFacts(
         data=data,
         model=client.model,
-        experience_months=experience_months(data["experience"], today, text=(text or "")[:MAX_INPUT_CHARS]),
+        experience_months=experience_months(data["experience"], today, text=page),
         education_levels=levels,
     )
 

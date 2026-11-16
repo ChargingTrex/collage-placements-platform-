@@ -227,6 +227,9 @@ LLM = {
     "MODEL": os.getenv("LLM_MODEL", "llama3.1:8b"),
     "EMBED_MODEL": os.getenv("EMBED_MODEL", "nomic-embed-text"),
     "TIMEOUT_SECONDS": float(os.getenv("LLM_TIMEOUT_SECONDS", 60)),
+    # Sent as `reasoning_effort` only when set. "none" turns a thinking
+    # model's reasoning off (gemma4: about half the time per resume on CPU).
+    "REASONING_EFFORT": os.getenv("LLM_REASONING_EFFORT", "").strip(),
 }
 
 # Profile vectors: MongoDB `$vectorSearch` when MONGO_URI is set and up,

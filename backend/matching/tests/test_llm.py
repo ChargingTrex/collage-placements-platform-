@@ -72,7 +72,8 @@ class TestResumeFacts:
     def test_near_miss_values_are_coerced_rather_than_rejected(self):
         reply = resume_reply(skills="Python, Django, SQL", cgpa="8.4/10", age="22")
 
-        facts = llm.parse_resume_facts("...", client=FakeLLMClient([reply]), today=TODAY)
+        # The age is written, or the grounding guard (G3a) would drop it.
+        facts = llm.parse_resume_facts("Age: 22", client=FakeLLMClient([reply]), today=TODAY)
 
         assert facts.data["skills"] == ["Python", "Django", "SQL"]
         assert facts.data["cgpa"] == 8.4
@@ -223,8 +224,9 @@ class TestSchemaHardening:
         [("2003-03-12", "2003-03-12"), ("12/03/2003", None), ("2003-02-31", None), ("soon", None)],
     )
     def test_date_of_birth_must_be_an_iso_date(self, value, expected):
+        # The date is written, or the grounding guard (G3a) would drop it.
         facts = llm.parse_resume_facts(
-            "...", client=FakeLLMClient([resume_reply(date_of_birth=value)]), today=TODAY
+            "DOB: 12/03/2003", client=FakeLLMClient([resume_reply(date_of_birth=value)]), today=TODAY
         )
 
         assert facts.data["date_of_birth"] == expected
@@ -364,6 +366,81 @@ class TestClient:
         assert seen["body"]["response_format"] == {"type": "json_object"}
 
 
+class TestCutOffReply:
+    """
+    A reply that ran out of context is not retried.
+
+    Measured 2026-11-16: a 12,000-character resume took 3,499 prompt tokens,
+    so gemma4:e4b's 4,096-token context left 597 for the reply, which
+    stopped mid-JSON with finish_reason "length".
+    """
+
+    def test_it_raises_without_a_second_call(self, monkeypatch):
+        calls = []
+
+        def fake_post(url, json, timeout):
+            calls.append(json)
+            return httpx.Response(
+                200,
+                json={"choices": [{"message": {"content": '{"full_name": "A'}, "finish_reason": "length"}]},
+                request=httpx.Request("POST", url),
+            )
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        client = llm.LLMClient("http://ollama/v1", "m", "e", timeout=5)
+
+        with pytest.raises(llm.LLMUnavailable, match="cut off"):
+            llm.parse_resume_facts("Aarav Mehta", client=client)
+
+        assert len(calls) == 1
+
+
+class TestReasoningEffort:
+    """G0: `reasoning_effort` goes out only when LLM_REASONING_EFFORT is set."""
+
+    @pytest.fixture
+    def sent(self, monkeypatch) -> dict:
+        seen = {}
+
+        def fake_post(url, json, timeout):
+            seen["body"] = json
+            return httpx.Response(
+                200, json={"choices": [{"message": {"content": "{}"}}]}, request=httpx.Request("POST", url)
+            )
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+        return seen
+
+    def test_a_client_built_without_it_sends_nothing(self, sent):
+        llm.LLMClient("http://ollama/v1", "m", "e", timeout=5).chat_json("s", "u")
+
+        assert "reasoning_effort" not in sent["body"]
+
+    @pytest.mark.parametrize("config", [{"REASONING_EFFORT": ""}, {}])
+    def test_by_default_the_configured_client_sends_nothing(self, sent, settings, config):
+        base = {k: v for k, v in settings.LLM.items() if k != "REASONING_EFFORT"}
+        settings.LLM = {**base, "ENABLED": True, **config}
+
+        llm.get_client().chat_json("s", "u")
+
+        assert "reasoning_effort" not in sent["body"]
+
+    def test_a_set_value_is_sent(self, sent, settings):
+        """gemma4 thinks unless told not to; "none" halves a CPU reading."""
+        settings.LLM = {**settings.LLM, "ENABLED": True, "REASONING_EFFORT": "none"}
+
+        llm.get_client().chat_json("s", "u")
+
+        assert sent["body"]["reasoning_effort"] == "none"
+
+    def test_the_setting_is_empty_when_the_env_is_unset(self, settings):
+        import os
+
+        if "LLM_REASONING_EFFORT" in os.environ:
+            pytest.skip("LLM_REASONING_EFFORT is set in this environment")
+        assert settings.LLM["REASONING_EFFORT"] == ""
+
+
 class TestEngineAnalysis:
     @pytest.fixture
     def engine(self):
@@ -446,7 +523,8 @@ class TestEngineAnalysis:
     def test_the_audit_summary_carries_no_resume_content(self, engine):
         reply = resume_reply(full_name="Aarav Mehta", phones=["9876543210"])
 
-        summary = engine.analyse_resume("...", client=FakeLLMClient([reply])).as_dict()
+        # The phone is written, so the grounding guard (G3a) keeps it in the facts.
+        summary = engine.analyse_resume("Aarav Mehta, 9876543210", client=FakeLLMClient([reply])).as_dict()
 
         assert summary["extraction_source"] == "llm"
         assert "Aarav" not in str(summary) and "9876543210" not in str(summary)

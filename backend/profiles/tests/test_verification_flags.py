@@ -24,7 +24,7 @@ from profiles.models import ExperienceEntry, ProjectEntry, ResumeAnalysis
 from profiles.verification import verification_checks, verification_inputs
 
 RESUME = """Aarav Mehta
-aarav.mehta@college.edu | +91 91234 56780
+aarav.mehta@college.edu | aarav.personal@gmail.com | +91 91234 56780
 Age: 23  DOB: 09/07/2003  CGPA: 9.41/10
 
 EXPERIENCE
