@@ -646,6 +646,103 @@ def _plain(value):
     return value
 
 
+# --- grounding: a stated fact must be on the page ------------------------------
+# The admin's verification flags are built from the date of birth, age,
+# phones and emails. A model asked for "YYYY-MM-DD" will sometimes fill one in
+# for a resume that states none (gemma4 read a roll number "220200901" as
+# "2002-09-01"), and an invented DOB puts a bogus mismatch flag on screen. So
+# each of these is kept only when the resume itself writes it.
+
+_MONTH_WORD = r"(?P<mon>[A-Za-z]{3,9})\.?"
+_ORDINAL = r"(?:st|nd|rd|th)?"
+_PAGE_DATES = [
+    # 2002-09-01, 2002/9/1, 2002.09.01
+    re.compile(r"(?<!\d)(?P<y>(?:19|20)\d{2})[-/.](?P<m>\d{1,2})[-/.](?P<d>\d{1,2})(?!\d)"),
+    # 01/09/2002, 1-9-2002, 01.09.2002, 01 09 2002: day first, and month first too
+    re.compile(r"(?<!\d)(?P<a>\d{1,2})[-/. ](?P<b>\d{1,2})[-/. ](?P<y>(?:19|20)\d{2})(?!\d)"),
+    # 1 September 2002, 1st Sep, 2002, 01-Sep-2002
+    re.compile(rf"(?<!\d)(?P<d>\d{{1,2}}){_ORDINAL}[\s\-,]{{1,3}}(?:of\s+)?{_MONTH_WORD}[\s\-,']{{1,3}}(?P<y>(?:19|20)\d{{2}})(?!\d)", re.IGNORECASE),
+    # September 1, 2002
+    re.compile(rf"{_MONTH_WORD}\s{{1,3}}(?P<d>\d{{1,2}}){_ORDINAL},?\s{{1,3}}(?P<y>(?:19|20)\d{{2}})(?!\d)", re.IGNORECASE),
+]
+
+
+def _dates_on_page(text: str) -> set[str]:
+    """Every full calendar date the text writes, as ISO strings."""
+    found: set[str] = set()
+
+    def add(year, month, day):
+        try:
+            found.add(datetime.date(int(year), int(month), int(day)).isoformat())
+        except ValueError:
+            pass
+
+    for pattern in _PAGE_DATES:
+        for match in pattern.finditer(text):
+            group = match.groupdict()
+            if group.get("mon") is not None:
+                month = _MONTHS.get(group["mon"][:3].lower())
+                if month:
+                    add(group["y"], month, group["d"])
+            elif group.get("a") is not None:
+                add(group["y"], group["b"], group["a"])  # 01/09/2002, day first
+                add(group["y"], group["a"], group["b"])  # 09/01/2002, month first
+            else:
+                add(group["y"], group["m"], group["d"])
+    return found
+
+
+_PHONE_LIKE = re.compile(r"\+?\d[\d\s\-().]{5,}\d")
+
+
+def _phone_on_page(phone: str, text: str) -> bool:
+    """The number's digits are written as one number, give or take a country code."""
+    digits = re.sub(r"\D", "", phone or "")
+    if len(digits) < 7:
+        return False
+    for match in _PHONE_LIKE.finditer(text):
+        written = re.sub(r"\D", "", match.group(0))
+        if written == digits or (len(digits) >= 10 and len(written) >= 10 and (
+            written.endswith(digits[-10:]) and digits.endswith(written[-10:])
+        )):
+            return True
+    return False
+
+
+def _email_on_page(email: str, text: str) -> bool:
+    email = (email or "").strip().lower().removeprefix("mailto:")
+    return bool(email) and email in text.lower()
+
+
+def _age_on_page(age: int, text: str) -> bool:
+    return re.search(rf"(?<![\d.]){age}(?![\d.])", text) is not None
+
+
+def drop_unstated_facts(data: dict, text: str) -> dict:
+    """
+    The reply with any date of birth, age, phone or email the resume does
+    not write taken out. Names of what was dropped are logged, never values.
+    """
+    data = dict(data)
+    dropped = []
+    if data.get("date_of_birth") and data["date_of_birth"] not in _dates_on_page(text):
+        data["date_of_birth"] = None
+        dropped.append("date_of_birth")
+    if data.get("age") is not None and not _age_on_page(data["age"], text):
+        data["age"] = None
+        dropped.append("age")
+    phones = [phone for phone in data.get("phones") or [] if _phone_on_page(phone, text)]
+    if len(phones) != len(data.get("phones") or []):
+        dropped.append("phones")
+    emails = [email for email in data.get("emails") or [] if _email_on_page(email, text)]
+    if len(emails) != len(data.get("emails") or []):
+        dropped.append("emails")
+    data["phones"], data["emails"] = phones, emails
+    if dropped:
+        logger.info("Dropped model-stated facts the resume does not write: %s", ", ".join(dropped))
+    return data
+
+
 def parse_resume_facts(
     text: str,
     client: LLMClient | None = None,
@@ -653,12 +750,14 @@ def parse_resume_facts(
 ) -> ResumeFacts:
     """Read a resume with the model. Raises LLMUnavailable to send callers to regex."""
     client = client or get_client()
+    page = (text or "")[:MAX_INPUT_CHARS]  # what the model was shown
     data = _plain(_ask(client, RESUME_SYSTEM_PROMPT, text, _normalise_resume_reply, ResumeFactsSerializer))
+    data = drop_unstated_facts(data, page)
     levels = {entry["level"] for entry in data["education"] if entry.get("level")}
     return ResumeFacts(
         data=data,
         model=client.model,
-        experience_months=experience_months(data["experience"], today, text=(text or "")[:MAX_INPUT_CHARS]),
+        experience_months=experience_months(data["experience"], today, text=page),
         education_levels=levels,
     )
 

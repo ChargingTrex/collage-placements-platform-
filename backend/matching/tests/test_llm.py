@@ -72,7 +72,8 @@ class TestResumeFacts:
     def test_near_miss_values_are_coerced_rather_than_rejected(self):
         reply = resume_reply(skills="Python, Django, SQL", cgpa="8.4/10", age="22")
 
-        facts = llm.parse_resume_facts("...", client=FakeLLMClient([reply]), today=TODAY)
+        # The age is written, or the grounding guard (G3a) would drop it.
+        facts = llm.parse_resume_facts("Age: 22", client=FakeLLMClient([reply]), today=TODAY)
 
         assert facts.data["skills"] == ["Python", "Django", "SQL"]
         assert facts.data["cgpa"] == 8.4
@@ -223,8 +224,9 @@ class TestSchemaHardening:
         [("2003-03-12", "2003-03-12"), ("12/03/2003", None), ("2003-02-31", None), ("soon", None)],
     )
     def test_date_of_birth_must_be_an_iso_date(self, value, expected):
+        # The date is written, or the grounding guard (G3a) would drop it.
         facts = llm.parse_resume_facts(
-            "...", client=FakeLLMClient([resume_reply(date_of_birth=value)]), today=TODAY
+            "DOB: 12/03/2003", client=FakeLLMClient([resume_reply(date_of_birth=value)]), today=TODAY
         )
 
         assert facts.data["date_of_birth"] == expected
@@ -492,7 +494,8 @@ class TestEngineAnalysis:
     def test_the_audit_summary_carries_no_resume_content(self, engine):
         reply = resume_reply(full_name="Aarav Mehta", phones=["9876543210"])
 
-        summary = engine.analyse_resume("...", client=FakeLLMClient([reply])).as_dict()
+        # The phone is written, so the grounding guard (G3a) keeps it in the facts.
+        summary = engine.analyse_resume("Aarav Mehta, 9876543210", client=FakeLLMClient([reply])).as_dict()
 
         assert summary["extraction_source"] == "llm"
         assert "Aarav" not in str(summary) and "9876543210" not in str(summary)

@@ -1,0 +1,14 @@
+{
+ "key": "backend_engineer",
+ "model": "gemma4:e4b",
+ "reasoning_effort": "none",
+ "note": "RECONSTRUCTED, not a raw recording. Measured 2026-11-16 with reasoning_effort=none (88.7 s, 349 completion tokens): gemma4:e4b returned date_of_birth \"2002-09-01\" for this resume, which states none, and kind null for the experience entry. That reply was not saved, so this is the recorded thinking-on reply with exactly those two values changed.",
+ "total_seconds": 88.7,
+ "calls": [
+  {
+   "attempt": 1,
+   "seconds": 88.7,
+   "content": "{\n  \"full_name\": \"Aarav Mehta\",\n  \"emails\": [\n    \"aarav.mehta@college.edu\"\n  ],\n  \"phones\": [],\n  \"age\": null,\n  \"date_of_birth\": \"2002-09-01\",\n  \"cgpa\": null,\n  \"education\": [\n    {\n      \"degree\": \"B.Tech\",\n      \"level\": \"UG\",\n      \"field\": \"Computer Engineering\",\n      \"institution\": null,\n      \"start\": null,\n      \"end\": \"2026\",\n      \"cgpa\": null\n    }\n  ],\n  \"experience\": [\n    {\n      \"role\": \"Backend Developer\",\n      \"organization\": \"Loadstar Logistics\",\n      \"kind\": null,\n      \"start\": null,\n      \"end\": null,\n      \"is_current\": false,\n      \"summary\": \"Built Django REST Framework APIs backing a fleet tracking product. Designed PostgreSQL schemas and tuned slow queries with EXPLAIN ANALYZE. Moved nightly reporting onto Celery workers running in Docker.\"\n    }\n  ],\n  \"skills\": [\n    \"Python\",\n    \"Django\",\n    \"Django REST Framework\",\n    \"PostgreSQL\",\n    \"SQL\",\n    \"Celery\",\n    \"Docker\",\n    \"Git\",\n    \"pytest\",\n    \"continuous integration\",\n    \"AWS\"\n  ],\n  \"projects\": [],\n  \"certifications\": [],\n  \"links\": []\n}"
+  }
+ ]
+}
