@@ -271,6 +271,15 @@ class TestAudit:
         # the PRN a profile read records.
         assert sorted(entry.detail["keys"]) == ["220200901", "220200955"]
 
+    def test_long_query_values_are_truncated_in_the_audit_row(self, as_admin, directory):
+        # ?prns= accepts up to 200 keys; the audit row should not store an
+        # arbitrarily long string for each call.
+        long_search = "x" * 5000
+        assert as_admin.get(USERS, {"search": long_search}).status_code == 200
+        stored = identity_reads().get().detail["query"]["search"]
+        assert len(stored) <= 201
+        assert stored.startswith("x" * 200)
+
     def test_a_prns_lookup_still_writes_only_one_row(self, as_admin, directory):
         # The unmatched-PRN report re-runs the filtered query; that must not
         # double the audit trail.

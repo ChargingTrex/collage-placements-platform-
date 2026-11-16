@@ -29,3 +29,6 @@ STUDENT_PASSWORD = "StudentPass!234"
 #: The student the "student" demo persona signs in as: the first of the
 #: `--with-students` demo students (public and verified).
 DEMO_STUDENT_PRN = "220200901"
+#: Its roster email (fixtures/roster_sample.csv). The persona requires both, so
+#: a real student who happens to hold that PRN on some database is never it.
+DEMO_STUDENT_EMAIL = "aarav.mehta@college.edu"

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { ApiError } from '@/api/client'
@@ -14,6 +14,8 @@ import {
 } from '@/api/users'
 import { Alert, Badge, Button, Card, EmptyState, Field, PageHeader, Select } from '@/components/ui'
 
+// Mirrors the backend's REST_FRAMEWORK PAGE_SIZE. Used only for the
+// "Showing x–y" range; paging itself follows the server's `next`.
 const PAGE_SIZE = 20
 
 const ROLE_CARDS: Array<{ role: AccountRole; label: string }> = [
@@ -77,24 +79,37 @@ export default function UsersPage() {
     }
   }, [])
 
-  const load = useCallback(async (params: DirectoryParams) => {
+  useEffect(() => {
+    // Filters can change faster than the server answers. Each run cancels the
+    // one before it, so a slow answer to an older filter never lands under a
+    // newer one.
+    let cancelled = false
+    const params: DirectoryParams = { ...filters, search: appliedSearch, page }
     setLoading(true)
     setError(null)
-    try {
-      const result = await usersApi.list(params)
-      setUsers(result.results)
-      setCount(result.count)
-      setHasNext(Boolean(result.next))
-    } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not load the users.')
-    } finally {
-      setLoading(false)
+    usersApi
+      .list(params)
+      .then((result) => {
+        if (cancelled) return
+        setUsers(result.results)
+        setCount(result.count)
+        setHasNext(Boolean(result.next))
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) return
+        // Rows from the previous request would read as the answer to this one.
+        setUsers([])
+        setCount(0)
+        setHasNext(false)
+        setError(caught instanceof ApiError ? caught.message : 'Could not load the users.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
     }
-  }, [])
-
-  useEffect(() => {
-    void load({ ...filters, search: appliedSearch, page })
-  }, [load, filters, appliedSearch, page])
+  }, [filters, appliedSearch, page])
 
   function setFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters((current) => ({ ...current, [key]: value }))
@@ -261,7 +276,7 @@ export default function UsersPage() {
 
       {loading ? (
         <p className="py-8 text-center text-sm text-ink-400">Loading…</p>
-      ) : users.length === 0 ? (
+      ) : error ? null : users.length === 0 ? (
         <EmptyState title={filtered ? 'No users match these filters' : 'No users yet'}>
           {filtered ? 'Try a different filter or clear the search.' : 'Accounts appear here as they are created.'}
         </EmptyState>
@@ -287,9 +302,9 @@ export default function UsersPage() {
                   <UserRow
                     key={row.id}
                     row={row}
-                    onCompany={(company) => {
-                      setCompany(company)
-                      setFilters({ ...NO_FILTERS, company_id: company.company_id })
+                    onCompany={(picked) => {
+                      setCompany(picked)
+                      setFilters({ ...NO_FILTERS, company_id: picked.company_id })
                       setSearch('')
                       setAppliedSearch('')
                       setPage(1)
@@ -339,6 +354,7 @@ function UserRow({
   onCompany: (company: Company) => void
 }) {
   const name = row.full_name || row.display_name || row.email
+  const company = row.company
   return (
     <tr>
       <td className="px-4 py-2.5">
@@ -359,14 +375,14 @@ function UserRow({
       <td className="py-2.5 pr-4 font-mono text-xs">{row.human_key ?? '—'}</td>
       <td className="py-2.5 pr-4 text-ink-600">{row.email}</td>
       <td className="py-2.5 pr-4 text-ink-600">
-        {row.company ? (
+        {company ? (
           <button
             type="button"
-            onClick={() => onCompany(row.company!)}
+            onClick={() => onCompany(company)}
             className="text-left text-brand-700 hover:underline"
-            title={`All recruiters at ${row.company.name}`}
+            title={`All recruiters at ${company.name}`}
           >
-            {row.company.name}
+            {company.name}
           </button>
         ) : row.role === 'student' ? (
           <span>

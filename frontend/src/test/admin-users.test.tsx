@@ -170,7 +170,59 @@ describe('all users page', () => {
     expect(screen.getByText(/showing the recruiters at/i)).toHaveTextContent('Acme Tech')
   })
 
-  it('sends role, status, school, batch and search to the server and resets to page one', async () => {
+  it.each([
+    ['changing a filter', async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.selectOptions(screen.getByLabelText('Role'), 'student')
+    }],
+    ['clicking a role card', async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole('button', { name: /recruiters/i }))
+    }],
+    ['searching', async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.type(screen.getByLabelText('Search'), 'rhea')
+      await user.click(screen.getByRole('button', { name: 'Search' }))
+    }],
+    ['drilling into a company', async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole('button', { name: 'Acme Tech' }))
+    }],
+    ['clearing the filters', async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    }],
+  ])('goes back to page one after %s', async (_label, act) => {
+    const user = userEvent.setup()
+    const fetchMock = signedInAsAdmin([
+      summaryRoute,
+      {
+        path: '/api/auth/admin/users',
+        body: {
+          count: 45,
+          next: '/api/auth/admin/users?page=2',
+          previous: null,
+          results: [STUDENT, RECRUITER],
+        },
+      },
+    ])
+    renderApp('/admin/users')
+    await screen.findByText('Showing 1–20 of 45 accounts')
+
+    // "Clear filters" only shows once something is filtered; set one first.
+    if (_label === 'clearing the filters') {
+      await user.selectOptions(screen.getByLabelText('Status'), 'active')
+      await screen.findByRole('button', { name: 'Clear filters' })
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(listQueries(fetchMock).at(-1)?.get('page')).toBe('2'))
+    await screen.findByText('Showing 21–40 of 45 accounts')
+    const before = listQueries(fetchMock).length
+
+    await act(user)
+
+    await waitFor(() => expect(listQueries(fetchMock).length).toBeGreaterThan(before))
+    expect(listQueries(fetchMock).at(-1)?.get('page')).toBe('1')
+    expect(await screen.findByText('Showing 1–20 of 45 accounts')).toBeInTheDocument()
+  })
+
+  it('sends role, status, school, batch and search to the server', async () => {
     const user = userEvent.setup()
     const fetchMock = signedInAsAdmin([
       summaryRoute,
@@ -197,7 +249,83 @@ describe('all users page', () => {
     expect(last.get('status')).toBe('active')
     expect(last.get('school')).toBe('business')
     expect(last.get('batch')).toBe('2027')
-    expect(last.get('page')).toBe('1')
+  })
+
+  it('shows only the latest request when responses come back out of order', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('pcp.access', 'access-token')
+    const pending = new Map<string, (body: unknown) => void>()
+    const respond = (body: unknown, status = 200) =>
+      ({
+        ok: status < 300,
+        status,
+        headers: new Headers(),
+        text: async () => JSON.stringify(body),
+      }) as Response
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/health')) return respond(HEALTHY.body)
+        if (url.startsWith('/api/auth/me')) return respond(ADMIN)
+        if (url.startsWith('/api/auth/admin/users/summary')) return respond(SUMMARY)
+        if (url.startsWith('/api/auth/admin/users')) {
+          const role = new URLSearchParams(url.split('?')[1] ?? '').get('role') ?? 'all'
+          // Hold the filtered requests so the test decides the order they land in.
+          if (role === 'all') return respond({ count: 1, next: null, previous: null, results: [STUDENT] })
+          return new Promise<Response>((resolve) =>
+            pending.set(role, (body) => resolve(respond(body))),
+          )
+        }
+        return respond({ detail: 'No mock' }, 404)
+      }),
+    )
+    renderApp('/admin/users')
+    await screen.findByText('220200901')
+
+    await user.selectOptions(screen.getByLabelText('Role'), 'company')
+    await user.selectOptions(screen.getByLabelText('Role'), 'admin')
+    await waitFor(() => expect([...pending.keys()].sort()).toEqual(['admin', 'company']))
+
+    // The later request (admin) answers first; the earlier one (company) answers late.
+    pending.get('admin')!({ count: 1, next: null, previous: null, results: [OFFICER] })
+    await screen.findByText('ADM-0002')
+    pending.get('company')!({ count: 1, next: null, previous: null, results: [RECRUITER] })
+
+    // Give the stale response every chance to render, then check it did not.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByText('ADM-0002')).toBeInTheDocument()
+    expect(screen.queryByText('CMP-0001')).not.toBeInTheDocument()
+    expect(screen.getByText('Showing 1–1 of 1 account')).toBeInTheDocument()
+  })
+
+  it('clears the previous rows when a reload fails', async () => {
+    const user = userEvent.setup()
+    let fail = false
+    signedInAsAdmin([
+      summaryRoute,
+      {
+        path: '/api/auth/admin/users',
+        get status() {
+          return fail ? 500 : 200
+        },
+        get body() {
+          return fail
+            ? { detail: 'Server error.' }
+            : { count: 45, next: '/api/auth/admin/users?page=2', previous: null, results: [STUDENT] }
+        },
+      } as Route,
+    ])
+    renderApp('/admin/users')
+    await screen.findByText('Showing 1–20 of 45 accounts')
+
+    fail = true
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(await screen.findByText('Server error.')).toBeInTheDocument()
+    expect(screen.queryByText(/Showing \d+–\d+ of/)).not.toBeInTheDocument()
+    expect(screen.queryByText('220200901')).not.toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
   it('pages through the results', async () => {

@@ -35,6 +35,10 @@ from core.filters import (
 from core.models import AuditLog
 
 
+#: Longest query-parameter value kept in a directory listing's audit row.
+AUDIT_QUERY_VALUE_MAX = 200
+
+
 def directory_queryset():
     """Every account, with the roster and profile facts a row shows."""
     from roster.models import Student
@@ -204,7 +208,12 @@ class UserDirectoryView(ReportUnmatchedPrnsMixin, generics.ListAPIView):
             action=AuditLog.Action.IDENTITY_ACCESSED,
             target="user directory",
             route=request.path,
-            query={key: request.query_params.get(key) for key in request.query_params},
+            # Capped: `prns` takes 200 keys and `search` is free text, and an
+            # audit row should not store whatever length a caller sends.
+            query={
+                key: (request.query_params.get(key) or "")[:AUDIT_QUERY_VALUE_MAX]
+                for key in request.query_params
+            },
             count=response.data.get("count", len(results)),
             keys=[row["human_key"] for row in results if row["human_key"]],
         )

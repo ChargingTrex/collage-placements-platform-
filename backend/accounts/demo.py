@@ -36,12 +36,15 @@ class Persona:
     #: Email for admins and recruiters, PRN for the student: what they would
     #: type at the login screen.
     identifier: str
+    #: The seeded login email. For the student this is checked as well as the
+    #: PRN, so the persona matches only the account the seed created.
+    email: str
 
     def account(self) -> User | None:
         """The seeded account, if it exists and may sign in; else None."""
-        lookup = {"prn": self.identifier} if self.role == Role.STUDENT else {
-            "email": self.identifier
-        }
+        lookup = {"email": self.email}
+        if self.role == Role.STUDENT:
+            lookup["prn"] = self.identifier
         user = User.objects.filter(role=self.role, **lookup).first()
         return user if user is not None and user.may_log_in else None
 
@@ -53,6 +56,7 @@ PERSONAS: tuple[Persona, ...] = (
         description="A final-year student with a complete, verified profile.",
         role=Role.STUDENT,
         identifier=demo_accounts.DEMO_STUDENT_PRN,
+        email=demo_accounts.DEMO_STUDENT_EMAIL,
     ),
     Persona(
         key="officer",
@@ -60,6 +64,7 @@ PERSONAS: tuple[Persona, ...] = (
         description="The pilot placement-cell login: roster, profiles, all users.",
         role=Role.ADMIN,
         identifier=demo_accounts.PILOT_OFFICER_EMAIL,
+        email=demo_accounts.PILOT_OFFICER_EMAIL,
     ),
     Persona(
         key="acme",
@@ -67,6 +72,7 @@ PERSONAS: tuple[Persona, ...] = (
         description="Recruiter who has shortlisted a student.",
         role=Role.COMPANY,
         identifier=demo_accounts.COMPANIES[0][2],
+        email=demo_accounts.COMPANIES[0][2],
     ),
     Persona(
         key="nimbus",
@@ -74,6 +80,7 @@ PERSONAS: tuple[Persona, ...] = (
         description="Recruiter at a second company, with its own shortlist.",
         role=Role.COMPANY,
         identifier=demo_accounts.COMPANIES[1][2],
+        email=demo_accounts.COMPANIES[1][2],
     ),
 )
 PERSONAS_BY_KEY = {persona.key: persona for persona in PERSONAS}
