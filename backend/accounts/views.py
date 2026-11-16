@@ -51,9 +51,13 @@ class OtpThrottle(ScopedRateThrottle):
 
 
 def _client_ip(request) -> str | None:
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    # X-Forwarded-For is client-controlled on its left: only the entries our own
+    # reverse proxies appended can be trusted. TRUSTED_PROXY_COUNT is how many
+    # there are (0: ignore the header). Same rule as DRF's NUM_PROXIES.
+    trusted = settings.TRUSTED_PROXY_COUNT
+    forwarded = [p.strip() for p in request.META.get("HTTP_X_FORWARDED_FOR", "").split(",") if p.strip()]
+    if trusted > 0 and len(forwarded) >= trusted:
+        return forwarded[-trusted]
     return request.META.get("REMOTE_ADDR")
 
 

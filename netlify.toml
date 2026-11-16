@@ -1,0 +1,19 @@
+# Netlify build settings. Deploy from the repo root or with `netlify deploy --prod`.
+# The live redirects are in frontend/public/_redirects (Vite copies them into
+# dist/). Netlify applies _redirects before this file, so the block below is a
+# FALLBACK, off by default; see docs/HOSTING.md, "ngrok warning page".
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+# Fallback if ngrok's free-plan warning page ever reaches the app (API calls
+# come back as HTML). Delete the /api line from _redirects, fill in TUNNEL_HOST
+# and uncomment: this variant sends the ngrok-skip-browser-warning header.
+#
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://TUNNEL_HOST/api/:splat"
+#   status = 200
+#   force = true
+#   headers = {ngrok-skip-browser-warning = "1"}

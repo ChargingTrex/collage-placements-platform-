@@ -26,6 +26,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -768,6 +769,16 @@ def build_outcomes(batch: int | None) -> dict:
 # --- admin ------------------------------------------------------------------
 
 
+class AnyAcceptRenderer(BaseRenderer):
+    """Negotiates any Accept header; only used by actions that return their own HttpResponse."""
+
+    media_type = "*/*"
+    format = "any"
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data if isinstance(data, bytes) else str(data).encode()
+
+
 class AdminProfileViewSet(
     LogIdentityReadMixin, ReportUnmatchedPrnsMixin, viewsets.ReadOnlyModelViewSet
 ):
@@ -866,7 +877,17 @@ class AdminProfileViewSet(
         """Career-path counts per school (R3)."""
         return Response(self._outcomes(request))
 
-    @action(detail=False, methods=["get"], url_path="outcomes/export", url_name="outcomes-export")
+    # The body is a plain HttpResponse, but content negotiation still runs first:
+    # with the DEBUG-off JSON-only default, `Accept: text/csv` (or text/html) was
+    # a 406. The catch-all renderer lets any Accept through; JSON stays first so
+    # error responses (401/403) are still JSON.
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="outcomes/export",
+        url_name="outcomes-export",
+        renderer_classes=[JSONRenderer, AnyAcceptRenderer],
+    )
     def outcomes_export(self, request):
         body = self._outcomes(request)
         values = [p["value"] for p in body["paths"]]

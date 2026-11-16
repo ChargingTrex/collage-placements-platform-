@@ -1,0 +1,5 @@
+# Netlify rules, first match wins. Status 200 = proxy/rewrite, the URL does not change.
+# TUNNEL_HOST is a placeholder: replace it with your ngrok static domain
+# (docs/HOSTING.md step 5) before `netlify deploy --prod`.
+/api/*  https://TUNNEL_HOST/api/:splat  200
+/*      /index.html                     200
