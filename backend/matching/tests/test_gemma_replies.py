@@ -186,6 +186,34 @@ class TestStatedFactsMustBeOnThePage:
         assert llm.drop_unstated_facts({"age": 21}, "Age: 21")["age"] == 21
         assert llm.drop_unstated_facts({"age": 21}, "Batch of 2021, CGPA 8.21")["age"] is None
 
+    @pytest.mark.parametrize(
+        "written, kept",
+        [
+            ("Age: 21", True), ("Aged 21, from Pune", True), ("21 years old", True), ("21 yrs old", True),
+            ("AGE - 21", True),
+            ("Team of 21 engineers", False), ("Ranked 21 in the state", False),
+            ("Age: 23. Led a team of 21", False),
+        ],
+    )
+    def test_an_age_needs_an_age_cue_beside_it(self, written, kept):
+        """QA-2 (optional): a bare 21 anywhere on the page grounded age 21."""
+        assert llm.drop_unstated_facts({"age": 21}, written)["age"] == (21 if kept else None)
+
+    @pytest.mark.parametrize(
+        "written, kept",
+        [
+            ("Date of Birth: 01/09/2002", True), ("D.O.B. 01-09-2002", True),
+            ("Born on the 1st of September, 2002 in Pune", True),
+            ("Intern, Loadstar, 01/09/2002 - 30/11/2002", False),
+            ("Joined 1 Sep 2002", False),
+        ],
+    )
+    def test_a_dob_needs_a_birth_label_before_it(self, written, kept):
+        """QA-2 (optional): an internship's start date grounded a DOB."""
+        assert llm.drop_unstated_facts({"date_of_birth": "2002-09-01"}, written)["date_of_birth"] == (
+            "2002-09-01" if kept else None
+        )
+
 
 NO_THINKING_KEYS = sorted(path.stem for path in (FIXTURES / "no_thinking").glob("*.json"))
 

@@ -691,8 +691,17 @@ _PAGE_DATES = [
 ]
 
 
-def _dates_on_page(text: str) -> set[str]:
-    """Every full calendar date the text writes, as ISO strings."""
+#: What a resume writes before its date of birth.
+_BIRTH_LABEL = re.compile(r"\b(?:d\.?\s?o\.?\s?b\b|date\s+of\s+birth|birth\s*date|born)", re.IGNORECASE)
+_BIRTH_LABEL_REACH = 40
+
+
+def _dates_on_page(text: str, *, birth_labelled: bool = False) -> set[str]:
+    """
+    Every full calendar date the text writes, as ISO strings. With
+    `birth_labelled`, only those with a DOB label shortly before them, so an
+    internship's start date cannot stand in for a date of birth.
+    """
     found: set[str] = set()
 
     def add(year, month, day):
@@ -703,6 +712,9 @@ def _dates_on_page(text: str) -> set[str]:
 
     for pattern in _PAGE_DATES:
         for match in pattern.finditer(text):
+            before = text[max(0, match.start() - _BIRTH_LABEL_REACH):match.start()]
+            if birth_labelled and not _BIRTH_LABEL.search(before):
+                continue
             group = match.groupdict()
             if group.get("yy") is not None:
                 yy = int(group["yy"])
@@ -765,8 +777,19 @@ def _email_on_page(email: str, text: str) -> bool:
     return re.search(pattern, text, re.IGNORECASE) is not None
 
 
+_AGE_BEFORE = re.compile(r"\bage[d]?\b", re.IGNORECASE)
+_AGE_AFTER = re.compile(r"^\s*(?:years?|yrs?)[\s\-]*old\b", re.IGNORECASE)
+_AGE_CUE_REACH = 15
+
+
 def _age_on_page(age: int, text: str) -> bool:
-    return re.search(rf"(?<![\d.]){age}(?![\d.])", text) is not None
+    """The age is written as a number of its own, with "age" or "years old" beside it."""
+    for match in re.finditer(rf"(?<![\d.]){age}(?![\d.])", text):
+        before = text[max(0, match.start() - _AGE_CUE_REACH):match.start()]
+        after = text[match.end():match.end() + _AGE_CUE_REACH]
+        if _AGE_BEFORE.search(before) or _AGE_AFTER.match(after):
+            return True
+    return False
 
 
 def drop_unstated_facts(data: dict, text: str) -> dict:
@@ -776,7 +799,7 @@ def drop_unstated_facts(data: dict, text: str) -> dict:
     """
     data = dict(data)
     dropped = []
-    if data.get("date_of_birth") and data["date_of_birth"] not in _dates_on_page(text):
+    if data.get("date_of_birth") and data["date_of_birth"] not in _dates_on_page(text, birth_labelled=True):
         data["date_of_birth"] = None
         dropped.append("date_of_birth")
     if data.get("age") is not None and not _age_on_page(data["age"], text):
