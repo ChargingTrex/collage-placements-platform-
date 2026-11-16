@@ -13,7 +13,7 @@ pytestmark = pytest.mark.django_db
 
 
 def test_new_opportunity_goes_to_each_eligible_student_once(make_opportunity, student_a, student_b):
-    posting = make_opportunity(eligible_departments=["B.Tech Computer Science"], min_cgpa="7.00")
+    posting = make_opportunity(eligible_departments=["Computer Engineering"], min_cgpa="7.00")
 
     assert notify_new_opportunity(posting) == 1
     assert notify_new_opportunity(posting) == 0  # idempotent

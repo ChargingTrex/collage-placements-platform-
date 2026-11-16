@@ -102,10 +102,12 @@ class TestRefusals:
         return response.data["reason"]
 
     def test_not_open(self, as_a, make_opportunity):
-        # A posting that closed after the student saw it, or one that never
-        # opened, is "not open" rather than a 404 (ids are unguessable UUIDs).
-        for status in ("closed", "draft", "pending_review"):
-            assert self.reason(apply(as_a, make_opportunity(status=status))) == "not_open"
+        # A posting that closed after the student saw it is "not open". One
+        # that never opened (draft, pending, rejected) is not visible to a
+        # student at all, so applying to it is a 404 (contract: apply).
+        assert self.reason(apply(as_a, make_opportunity(status="closed"))) == "not_open"
+        for status in ("draft", "pending_review", "rejected"):
+            assert apply(as_a, make_opportunity(status=status)).status_code == 404
         assert as_a.post(reverse("opportunity-apply", args=["00000000-0000-0000-0000-000000000000"])).status_code == 404
 
     def test_deadline_passed(self, as_a, make_opportunity):
