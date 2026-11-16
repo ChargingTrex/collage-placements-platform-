@@ -516,7 +516,7 @@ def run_public(r: Run, args) -> None:
     r.check("P. the server answers /api/health with 200", status == 200, f"HTTP {status}")
     r.check("P. /api/health reports debug=false", (data or {}).get("debug") is False, f"{(data or {}).get('debug')}")
 
-    for path in ("/this/page/does/not/exist", "/api/no-such-endpoint", "/django-admin/no/such"):
+    for path in ("/this/page/does/not/exist", "/api/no-such-endpoint", "/api/profiles/no-such/deeper"):
         status, _, raw, _ = r.call("GET", path, accept="text/html")
         text = raw.decode(errors="replace")
         r.check(f"P. a bad URL ({path}) is a plain 404 with no debug page",
@@ -524,7 +524,7 @@ def run_public(r: Run, args) -> None:
     # A request that makes the server raise must not leak a traceback either.
     status, _, raw, _ = r.call("POST", "/api/auth/login", body=None, accept="text/html")
     text = raw.decode(errors="replace")
-    r.check("P. a malformed login request leaks no traceback", status < 500 and "Traceback" not in text, f"HTTP {status}")
+    r.check("P. a malformed login request leaks no traceback", status < 500 and not any(m in text for m in PUBLIC_DEBUG_MARKERS), f"HTTP {status}")
 
     for path in ("/media/", "/media/resumes/anything.pdf", "/media/transcripts/220200901/t.pdf"):
         status, _, _, _ = r.call("GET", path, accept="*/*")
@@ -538,7 +538,10 @@ def run_public(r: Run, args) -> None:
     # Provoke every place a code could be echoed, then scan every body seen.
     r.call("POST", "/api/auth/otp/request", body={"identifier": args.admin_email})
     r.call("POST", "/api/auth/signup", body={"prn": "220200999", "email": "nobody@college.edu"})
-    r.call("POST", "/api/auth/signup", body={"prn": "220200905", "email": "roster.only@college.edu"})
+    # A real roster row with no account yet (roster_sample.csv): the one that
+    # would get a code. The response must say a code was sent, never what it is.
+    status, _, _, _ = r.call("POST", "/api/auth/signup", body={"prn": "220200905", "email": "kabir.nair@college.edu"})
+    r.check("P. signup for a roster student answers 2xx (so the no-code scan below means something)", 200 <= status < 300, f"HTTP {status}")
     admin = r.login(args.admin_email, args.admin_password)
     if admin:
         r.get("/api/auth/me", admin)
