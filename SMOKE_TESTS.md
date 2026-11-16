@@ -1264,7 +1264,7 @@ a running server, one group of checks per beat:
 
 | Group | Demo beat |
 |---|---|
-| 1, 1b | Officer's All users page and filters; persona sign-in (SKIP until those endpoints exist) |
+| 1, 1b | Officer's All users page, filters and summary; one-click persona sign-in |
 | 2 | Outcomes dashboard, batch filter, CSV export |
 | 3 | Officer's Profiles list and its verification checks |
 | 4 | Student detail (roster, transcript and self-reported CGPA); resume download and its audit-log row |
@@ -1274,6 +1274,15 @@ a running server, one group of checks per beat:
 
 Standard library only, apart from the PDFs it draws with the backend's own
 reportlab, so run it with the project venv. Synthetic data only.
+
+> **Warning: both modes write to their target.** Default mode uploads Aarav's
+> transcript (opening a CGPA review), runs his resume analysis, signs in
+> several accounts and writes audit rows. `--public` makes a real signup, which
+> sends an OTP email. Never run either against the demo DB snapshot, or against
+> a public link that has real accounts. Use a throwaway database.
+
+A missing seed, a 404 where an endpoint should exist, a server that is down, or
+a run with no passing checks is a FAIL with exit status 1, never a quiet pass.
 
 ### Run it (default: deterministic, LLM off)
 
@@ -1315,33 +1324,37 @@ without `LLM_ENABLED=false`, and only while no other agent is using Ollama.
 ../.venv/bin/python checkpoints/e2e_demo.py --public --base-url https://<public-link>
 ```
 
-Needs no seed data. It asserts: `/api/health` reports `debug=false`; a bad URL
+It needs the seeded roster and officer (`seed_demo`): it provokes a real signup
+for roster student 220200905 and signs the officer in, to scan those responses.
+It asserts: `/api/health` reports `debug=false`; a bad URL
 is a plain 404 with no Django debug page or traceback; `/media/...` is 404;
-the demo sign-in endpoints under `/api/auth/demo/` are 404; and no response
-body from signup, OTP request, login or `me` carries an OTP or sign-in code.
+`GET /api/auth/demo/personas` and `POST /api/auth/demo/login` (every persona)
+are 404 and issue no tokens; and no response body from signup, OTP request,
+login or `me` carries an OTP or sign-in code, in a JSON key or as a 6-digit
+number beside the word "code" or "otp".
 Run against a DEBUG server it fails (checked), so it does bite. A signup that
 is throttled (429) counts as fine, so repeat runs stay identical.
 
 ### Expected output
 
-Default mode, with the all-users and persona endpoints not yet merged (a
-`FAIL` anywhere means the demo path is broken; `SKIP` is not a failure):
+A `FAIL` anywhere means the demo path is broken. The only SKIP in default mode
+is the `--live-ai` check:
 
 ```text
 e2e_demo: demo mode
 
 == 0. Server and sign-in
 PASS  server answers /api/health with 200
-PASS  the officer, Acme and Nimbus can sign in (run seed_demo first)
-
-== 1. Officer: All users page and filters (endpoint added by another builder)
-SKIP  1. /api/auth/admin/users lists students, admins and recruiters - endpoint answers 404 (not merged yet)
+PASS  the shared officer can sign in with a password
+...
+== 1b. Demo persona sign-in (/api/auth/demo/)
+PASS  1b. personas lists the four buttons (student, officer, acme, nimbus)
 ...
 == 7. Recruiter (Nimbus): hidden and shortlisted-only students stay out of sight
 PASS  7. Nimbus does not see the hidden student
 PASS  7. Nimbus does not see the one only Acme shortlisted
 ...
-74/74 checks passed, 5 skipped
+111/111 checks passed, 1 skipped
 ```
 
-`--public` ends `18/18 checks passed`. Exit status is 1 if any check fails.
+`--public` ends `20/20 checks passed`. Exit status is 1 if any check fails.
