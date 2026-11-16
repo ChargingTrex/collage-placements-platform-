@@ -16,6 +16,12 @@ The `llm` column is the model's own reading, not the engine's blend:
 experience is what its dated entries add up to, so a resume that only
 states "3 years of experience" is a miss for the model and a hit for regex.
 That difference is the point of measuring both.
+
+The `engine` column, shown beside `llm`, is what the portal actually stores
+and shows: `MatchingEngine.analyse_resume`'s rule applied to the same two
+readings (the model's dated total when it found one, else regex; its
+education levels when it found any, else regex; regex for everything when
+the model was unavailable). It costs no extra model call.
 """
 
 from __future__ import annotations
@@ -57,9 +63,22 @@ def llm_reading(client):
             "education": set(facts.education_levels),
             "age": facts.data.get("age"),
             "cgpa": facts.data.get("cgpa"),
+            "experience_months": facts.experience_months,
         }
 
     return read
+
+
+def engine_reading(regex: dict, model: dict | None) -> dict:
+    """The engine's blend of the two readings (`MatchingEngine.analyse_resume`)."""
+    if model is None:
+        return dict(regex)
+    return {
+        "experience": model["experience"] if model["experience_months"] > 0 else regex["experience"],
+        "education": model["education"] or regex["education"],
+        "age": model["age"] if model["age"] is not None else regex["age"],
+        "cgpa": model["cgpa"] if model["cgpa"] is not None else regex["cgpa"],
+    }
 
 
 def expected(sample: SampleResume, field: str):
@@ -176,7 +195,8 @@ class Command(BaseCommand):
         elif options["llm"]:
             self.stdout.write("The LLM is disabled (LLM_ENABLED is false); scoring regex only.\n")
 
-        hits = {(reader, field): 0 for reader in readers for field in FIELDS}
+        columns = [*readers, "engine"] if "llm" in readers else list(readers)
+        hits = {(column, field): 0 for column in columns for field in FIELDS}
         scored = dict.fromkeys(FIELDS, 0)
         misses: list[str] = []
         for sample in samples:
@@ -188,6 +208,8 @@ class Command(BaseCommand):
                     recorder.write(dump_dir, sample, time.monotonic() - started)
                     self.stdout.write(f"  {sample.key}: {time.monotonic() - started:.1f}s\n")
                     self.stdout.flush()
+            if "llm" in readers:
+                readings["engine"] = engine_reading(readings["regex"], readings["llm"])
             for field in FIELDS:
                 want = expected(sample, field)
                 if want is None:
@@ -204,10 +226,10 @@ class Command(BaseCommand):
                         )
 
         self.stdout.write(f"Extraction accuracy on {len(samples)} hand-checked sample resumes\n\n")
-        self.stdout.write(f"{'field':<12}{'scored':>7}" + "".join(f"  {name:>11}" for name in readers) + "\n")
+        self.stdout.write(f"{'field':<12}{'scored':>7}" + "".join(f"  {name:>11}" for name in columns) + "\n")
         for field in FIELDS:
             cells = []
-            for name in readers:
+            for name in columns:
                 count, total = hits[(name, field)], scored[field]
                 percent = f"{round(100 * count / total)}%" if total else "-"
                 cells.append(f"  {f'{count}/{total}':>6} {percent:>4}")
