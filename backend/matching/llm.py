@@ -671,13 +671,21 @@ def _plain(value):
 
 _MONTH_WORD = r"(?P<mon>[A-Za-z]{3,9})\.?"
 _ORDINAL = r"(?:st|nd|rd|th)?"
+#: - / or . with optional spaces around it ("01 - 09 - 2002").
+_DATE_SEP = r"[ \t]*[-/.][ \t]*"
+#: Two-digit birth years: 00-30 are 2000-2030, 31-99 are 1931-1999.
+_CENTURY_PIVOT = 30
 _PAGE_DATES = [
     # 2002-09-01, 2002/9/1, 2002.09.01
     re.compile(r"(?<!\d)(?P<y>(?:19|20)\d{2})[-/.](?P<m>\d{1,2})[-/.](?P<d>\d{1,2})(?!\d)"),
-    # 01/09/2002, 1-9-2002, 01.09.2002, 01 09 2002: day first, and month first too
-    re.compile(r"(?<!\d)(?P<a>\d{1,2})[-/. ](?P<b>\d{1,2})[-/. ](?P<y>(?:19|20)\d{2})(?!\d)"),
-    # 1 September 2002, 1st Sep, 2002, 01-Sep-2002
+    # 01/09/2002, 1-9-2002, 01.09.2002, 01 09 2002, 01 - 09 - 2002: day first, and month first too
+    re.compile(rf"(?<!\d)(?P<a>\d{{1,2}})(?:{_DATE_SEP}| )(?P<b>\d{{1,2}})(?:{_DATE_SEP}| )(?P<y>(?:19|20)\d{{2}})(?!\d)"),
+    # 01-09-02, 1/9/02, 1.9.02: a separator is required, so "01 09 02" is not a date
+    re.compile(rf"(?<![\d.])(?P<a>\d{{1,2}}){_DATE_SEP}(?P<b>\d{{1,2}}){_DATE_SEP}(?P<yy>\d{{2}})(?!\d)(?!\.\d)"),
+    # 1 September 2002, 1st Sep, 2002, 01-Sep-2002, 1 Sept. 2002
     re.compile(rf"(?<!\d)(?P<d>\d{{1,2}}){_ORDINAL}[\s\-,]{{1,3}}(?:of\s+)?{_MONTH_WORD}[\s\-,']{{1,3}}(?P<y>(?:19|20)\d{{2}})(?!\d)", re.IGNORECASE),
+    # 1-Sep-02, 1st Sep '02
+    re.compile(rf"(?<!\d)(?P<d>\d{{1,2}}){_ORDINAL}[\s\-,]{{1,3}}(?:of\s+)?{_MONTH_WORD}[\s\-,']{{1,3}}(?P<yy>\d{{2}})(?!\d)", re.IGNORECASE),
     # September 1, 2002
     re.compile(rf"{_MONTH_WORD}\s{{1,3}}(?P<d>\d{{1,2}}){_ORDINAL},?\s{{1,3}}(?P<y>(?:19|20)\d{{2}})(?!\d)", re.IGNORECASE),
 ]
@@ -696,6 +704,9 @@ def _dates_on_page(text: str) -> set[str]:
     for pattern in _PAGE_DATES:
         for match in pattern.finditer(text):
             group = match.groupdict()
+            if group.get("yy") is not None:
+                yy = int(group["yy"])
+                group["y"] = (2000 if yy <= _CENTURY_PIVOT else 1900) + yy
             if group.get("mon") is not None:
                 month = _MONTHS.get(group["mon"][:3].lower())
                 if month:

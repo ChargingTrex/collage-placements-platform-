@@ -89,6 +89,23 @@ class TestStatedFactsMustBeOnThePage:
     def test_a_dob_is_matched_in_the_usual_formats(self, written):
         assert llm.drop_unstated_facts({"date_of_birth": "2005-05-14"}, written)["date_of_birth"] == "2005-05-14"
 
+    @pytest.mark.parametrize(
+        "written",
+        [
+            "DOB: 01-09-02", "DOB: 01/09/02", "DOB: 1.9.02", "DOB 1-Sep-02", "Born 1st Sep '02",
+            "DOB: 01 - 09 - 2002", "DOB: 01 / 09 / 2002", "Born 1 Sept. 2002", "Born Sept. 1, 2002",
+            "DOB: 09-01-02",
+        ],
+    )
+    def test_a_dob_with_a_two_digit_year_or_spaced_separators_is_matched(self, written):
+        """QA-2: these real ways of writing 1 September 2002 were dropped."""
+        assert llm.drop_unstated_facts({"date_of_birth": "2002-09-01"}, written)["date_of_birth"] == "2002-09-01"
+
+    @pytest.mark.parametrize("written, iso", [("DOB: 14/05/85", "1985-05-14"), ("DOB: 14-May-30", "2030-05-14"),
+                                              ("DOB: 14-May-31", "1931-05-14")])
+    def test_a_two_digit_year_pivots_at_30(self, written, iso):
+        assert llm.drop_unstated_facts({"date_of_birth": iso}, written)["date_of_birth"] == iso
+
     @pytest.mark.parametrize("written", ["Roll no 220200901", "Class of 2002, joined Sep 2001", "DOB: 2002"])
     def test_digits_that_merely_contain_the_date_do_not_count(self, written):
         assert llm.drop_unstated_facts({"date_of_birth": "2002-09-01"}, written)["date_of_birth"] is None
