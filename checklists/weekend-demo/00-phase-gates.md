@@ -7,7 +7,7 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
 - [ ] U1: Netlify account (or Vercel). **owner: user**
 - [ ] U2: ngrok account and static domain, or a Cloudflare tunnel. **owner: user**
 - [ ] U3: Docker Desktop running. **owner: user** *Without it, V runs on the local vector store (V1-local).*
-- [ ] U4: About 10 GB free disk. **owner: user** *Measured 9.0 GB free on 2026-11-16.*
+- [ ] U4: About 10 GB free disk. **owner: user** *Measured 9.0 GB free on 2026-11-16.* *Verifier, 2026-11-16: not met, and worse than it reads. Free disk fell to 0.26-0.75 GB three times (12:00, 20:01, 20:39) and came back to 6.3 GB at 20:44 with nothing deleted: the space goes to swap (20.5 of 20.5 GB used at 20:39) when several agent sessions and test runs overlap. While it was full, pytest runs lost output and reported spurious errors. Free real space, and keep to one heavy job at a time (see M4).*
 - [ ] U5: Demo date, room, projector and network confirmed. **owner: user**
 
 ## Friday: de-risk
@@ -25,7 +25,7 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
 
 ## Saturday gate
 
-- [ ] S1: The full backend suite is green with the AI off. **Pass when:** `python -m pytest` exits 0 from `backend/`, with the counts recorded.
+- [ ] S1: The full backend suite is green with the AI off. **Pass when:** `python -m pytest` exits 0 from `backend/`, with the counts recorded. *Not ticked yet: the verifier has no clean full run of its own. Its one full run (on a moving tree, load 200-550, disk full) gave 1036 passed, 1 skipped, 3 errors in 76 min and is discarded. The orchestrating session reports 1088 passed, 1 skipped on `7a0178b` with `LLM_ENABLED=true` pointed at a dead port. The `_offline_ai` guard (`2a7da8d`) was checked by the verifier on the AI test files: 107 passed with the LLM on at a dead port; `VECTOR_STORE_BACKEND=mongo` 114 passed, 1 skipped. Known limit: a `MONGO_URI` in the environment or `.env` still runs `test_real_mongo_round_trip`, which fails if MongoDB is down.*
 - [ ] S2: G2-V5 results recorded in `SMOKE_TESTS.md`.
 - [ ] S3: Resume-intelligence open items 1.1-1.3 ticked, or each item's remaining part noted as owner: user.
 
