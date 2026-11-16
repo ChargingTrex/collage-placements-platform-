@@ -1255,6 +1255,269 @@ transcript_prn_mismatch|1
 
 Server log: **0** 5xx responses, **0** tracebacks.
 
+---
+
+## Weekend demo, stream V: vectors on nomic-embed-text (2026-11-16)
+
+Run: worktree branch `worktree-agent-ada93be499c98b76a`, a fresh SQLite database
+and media folder in the session scratchpad, **no MongoDB** (Docker was not
+running), so the local vector store (`VECTOR_STORE_BACKEND=local`). Ollama with
+`nomic-embed-text` (768 dims). The chat model was **never called**: every run
+set `LLM_MODEL` to a name that is not pulled, and the measurement scripts
+replace `LLMClient.chat_json` with one that raises.
+
+Setup: `migrate` → `seed_demo --with-students` (LLM off) → the fifth Phase 2
+sample (`arjun_deshmukh_mechanical.docx`) added as PRN 220200907 →
+`analyze_resumes --all` with the LLM off (regex readings, status `done`).
+
+### V1-local: the local store holds real nomic vectors
+
+```text
+$ LLM_ENABLED=true EMBED_MODEL=nomic-embed-text manage.py reindex_vectors
+Reindexed 5; 0 failed.                       (29.5 s, Gemma busy on the same CPU)
+StoredVector by (model, dims): [{'model': 'nomic-embed-text', 'dims': 768, 'n': 5}]
+actual vector lengths: [768, 768, 768, 768, 768]
+rows from another model or dimension: 0
+```
+
+### V3: reindex, then recategorise
+
+Both exit 0: `Reindexed 5; 0 failed.` and `Recategorised 5; 0 changed.`
+
+- A full `reindex_vectors` now also deletes every vector another model made.
+  Before, a vector left by an old `EMBED_MODEL` for a profile that is no
+  longer analysed stayed forever.
+- Category centroids from another model are not touched by a reindex: no JD
+  text is stored to re-embed. They reset on the next JD that category records.
+
+### V4: the sample JD on real embeddings
+
+Searched as the placement admin, who sees the hidden and shortlisted-only
+students, with the measured calibration (floor 0.50, ceiling 0.88). The
+columns:
+
+- `raw`: the nomic cosine of the stored profile document (form + resume) to
+  the JD.
+- `sem`: that cosine, calibrated to 0–1.
+- `skills`: the skill part of the score.
+
+A. The chat reading unavailable (what a live search does on a cache miss):
+
+```text
+ #  prn        resume                          score  raw    sem   skills
+ 1  220200901  aarav_mehta_backend.pdf           100  0.876  0.99  1.00
+ 2  220200904  sana_qureshi_data.docx             72  0.714  0.56  0.75
+ 3  220200902  ishita_banerjee_marketing.pdf      38  0.623  0.32  0.25
+ 4  220200907  arjun_deshmukh_mechanical.docx     33  0.606  0.28  0.00
+ 5  220200903  kabir_nair_frontend.pdf            28  0.628  0.34  0.00
+```
+
+B. The JD reading stubbed with `seed_demo`'s hand-written `DEMO_JOBS[0]`
+(what Gemma's reading would supply; **not** a Gemma reading):
+
+```text
+ 1  220200901  aarav_mehta_backend.pdf           100  0.876  0.99  1.00
+ 2  220200904  sana_qureshi_data.docx             75  0.714  0.56  0.83
+ 3  220200902  ishita_banerjee_marketing.pdf      35  0.623  0.32  0.17
+ 4  220200907  arjun_deshmukh_mechanical.docx     33  0.606  0.28  0.00
+ 5  220200903  kabir_nair_frontend.pdf            28  0.628  0.34  0.00
+categories: Backend Engineer (2 JDs, nomic centroid, 768), Data Analyst,
+            Frontend Developer, Mechanical Design Engineer
+recategorise -> 220200901 [Backend Engineer, Data Analyst]
+                220200904 [Data Analyst, Backend Engineer]
+                220200903 [Frontend Developer]
+                220200907 [Mechanical Design Engineer]
+                220200902 []
+```
+
+Both backend resumes rank above the other three, on vectors, with no
+fallback. With the old provisional calibration (0.40/0.85) the order was the
+same (100, 78, 46, 41, 35).
+
+**What creates a category**
+
+- **Chat model off:** only `seed_demo`, from its hand-written readings in
+  `DEMO_JOBS`. Those categories have no centroid, so profiles fit them on
+  skills alone. A JD search records nothing.
+- **Chat model on:** a company or admin search or score whose JD the model
+  read (`read_job(record=True)`), once per JD. The category gets a nomic
+  centroid when the JD was embedded. `seed_demo` also asks the model to read
+  each of its four JDs, with no overall budget.
+- The sample JD, seeded by `seed_demo` and then searched, counts twice
+  (jd_count 2), because the seed does not set the search's "already
+  recorded" marker.
+
+**Bug fixed under V4.**
+
+- `read_job` asked the chat model first and embedded second, both on one
+  25 s budget.
+- Gemma on a CPU outlasts the budget, so the embedding then failed with
+  "budget ran out".
+- The result: every JD search with the LLM on fell back to spaCy and
+  recorded no category.
+- The fix: the embedding now goes first.
+
+### V5: the four provisional numbers, re-measured
+
+**Embedding floor and ceiling.** Raw cosine to `SAMPLE_JOB_DESCRIPTION`:
+
+| sample | raw text | stored profile document |
+|---|---|---|
+| backend_engineer * | 0.836 | 0.876 |
+| data_engineer * | 0.733 | 0.714 |
+| frontend_intern | 0.630 | 0.628 |
+| mechanical_designer | 0.565 | 0.606 |
+| biotech_masters | 0.551 | |
+| electronics_dated | 0.544 | |
+| civil_fresher | 0.537 | |
+| designer_short_dates | 0.531 | |
+| operations_multi_job | 0.530 | |
+| marketing_executive | 0.509 | 0.623 (form: Python, Java) |
+
+Chosen the way the spaCy values were:
+
+- **Floor 0.50** (was 0.40): the least relevant sample.
+- **Ceiling 0.88** (was 0.85): just above the best profile.
+- Both can now be set from the environment: `MATCH_EMBEDDING_FLOOR`,
+  `MATCH_EMBEDDING_CEILING`.
+
+**`CATEGORY_MERGE_THRESHOLD`.** Measured on 18 synthetic JDs over 9 roles.
+They include same-titled JDs for different work: "Software Engineer" for
+backend, Android and firmware, and "Analyst" for data and finance. The
+threshold only judges JDs that share a title or role:
+
+| pair | cosine |
+|---|---|
+| same role, JD vs JD | 0.701 – 0.891 |
+| same title, different work, JD vs JD | 0.665 – 0.728 |
+| JD vs its own role's centroid (leave-one-out) | ≥ 0.788 |
+| JD vs any other role's centroid | ≤ 0.771 |
+
+There is no clean gap between single JDs. **Kept at 0.75.**
+
+- It splits every different-work pair, with a margin of 0.022.
+- It also splits 7 of 20 same-role pairs (different stacks, such as Java vs
+  Python backends) into variants an admin merges.
+- A wrong split costs one admin merge; a wrong merge mixes roles silently.
+
+**`SKILL_ALIAS_SUGGESTION_THRESHOLD`.** Measured on 24 real aliases a resume
+might write (none already in the graph) and 44 non-aliases, each against its
+nearest canonical skill:
+
+| threshold | right suggestions (of 24) | wrong suggestions |
+|---|---|---|
+| 0.70 | 17 | 6 |
+| 0.74 | 16 | 3 |
+| **0.78** | **14** | **1** |
+| 0.80 | 11 | 1 |
+| 0.85 (old) | 5 | 1 |
+
+**Chosen 0.78.**
+
+- The one wrong suggestion left is "SQL Server" → SQL (0.866).
+- Names with a version stay below any usable threshold: "ReactJS 18" 0.566,
+  "Golang 1.21" 0.549, "Java SE 17" 0.652.
+- Suggestions are only pending, for an admin.
+
+**`CATEGORY_MIN_FIT`.** The five profiles against the 9 categories those 18
+JDs make (stubbed readings, nomic centroids, floor 0.50, ceiling 0.88):
+
+| fit | profile → category |
+|---|---|
+| 0.95 | frontend → Frontend Developer |
+| 0.92 | backend → Backend Engineer |
+| 0.87 | data → Data Analyst |
+| 0.73 | data → Backend Engineer |
+| 0.72 | mechanical → Mechanical Design Engineer |
+| 0.51 | backend → Data Analyst (doubtful) |
+| 0.49 | data → Financial Analyst (doubtful) |
+| 0.38 | marketing → Data Analyst (wrong) |
+| 0.37 | backend → Backend Engineer (2) |
+| 0.31 | frontend → Backend Engineer (2) (wrong) |
+
+**Chosen 0.45** (was 0.4).
+
+- It drops every wrong fit with room to spare; 0.40 dropped the 0.38 by only
+  0.02.
+- The marketing profile gets no role.
+
+The values are the defaults in `config/settings.py`, where each block has
+its table, and in `.env.example`. `matching/tests/test_measured_settings.py`
+keeps the two in step.
+
+### V6: no Gemma pause in a demo search
+
+**Before this change**, a JD search with the LLM on did this:
+
+1. Embedded the JD (seconds; see the timings below).
+2. Asked Gemma to read it, within the 25 s analysis budget.
+3. Gemma on this CPU takes far longer, so every search waited about 25 s and
+   got no reading. A failed reading is not cached, and no category was
+   recorded.
+
+**Now:**
+
+- A live search gives an unread JD's reading only
+  `JD_READING_BUDGET_SECONDS` (default 3); the embedding still ranks.
+- `manage.py read_jd` reads a JD with no budget, caches the reading under
+  the key the search uses, records its category, and recategorises.
+- `CACHE_BACKEND=file` makes that cache shared by every worker and kept
+  across restarts.
+
+**Pre-reading the demo JDs, before the demo.** Run them one at a time, while
+no other Gemma job is running:
+
+```sh
+# the server and the command must share the cache
+export CACHE_BACKEND=file CACHE_LOCATION=/var/tmp/placement-cache
+export LLM_ENABLED=true LLM_MODEL=gemma4:e4b EMBED_MODEL=nomic-embed-text
+manage.py read_jd demo_jds/backend.txt --timeout 300
+manage.py read_jd demo_jds/data_analyst.txt --timeout 300
+# start the server with the same CACHE_BACKEND and CACHE_LOCATION, then paste
+# exactly the same text: the search is a cache hit, with the reading and category
+```
+
+- The pasted text must be the same after trimming leading and trailing
+  whitespace. The search trims `jd_text`, and the cache key hashes the
+  trimmed text.
+- A reading stays cached for a day (`JD_CACHE_SECONDS`), so pre-read on the
+  demo day.
+- The cache key includes `LLM_MODEL`, so the server must run with the same
+  model name.
+- With the default locmem cache, `read_jd` warns: the server would never see
+  the reading.
+- Paste from the same `.txt` file given to `read_jd`. A copy from a rendered
+  page can change an em dash or the spacing inside the text, and then the
+  search misses the cache.
+- The test suite pins its cache to locmem whatever `.env` says, so running
+  the suite does not wipe the pre-read cache.
+
+**Cache-miss latency, measured** (the chat reading failed at once here; live,
+it adds up to `JD_READING_BUDGET_SECONDS`, 3 s). Gemma was busy on the same
+CPU throughout:
+
+```text
+run 0: embed+read_job 15.60s  search+score 0.15s   (cold: first call in the process)
+run 1: embed+read_job  0.79s  search+score 0.06s
+run 2: embed+read_job  1.59s  search+score 0.05s
+```
+
+So a warm search on an unread JD takes about 1–2 s plus at most 3 s. The
+first search after a server start is slower, so make one warm-up search
+before the demo.
+
+**Not verified:** whether Ollama stops generating when the 3 s chat request
+is dropped. If it does not, each search on an unread JD leaves Gemma
+generating in the background, and that slows the embeddings for the next
+searches. During this run, one embedding batch timed out at 120 s while
+Gemma was busy. Pre-read every demo JD.
+
+V3 re-run after the pruning change:
+`Reindexed 5; 0 failed. removed 0 vector(s) from another model.`, then
+`Recategorised 5; 0 changed.`
+
+---
+
 ## Gemma lane G2–G4 (2026-11-16)
 
 Model `gemma4:e4b` (Q4_K_M) in Ollama on the demo Mac's CPU, with

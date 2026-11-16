@@ -89,6 +89,23 @@ class TestStatedFactsMustBeOnThePage:
     def test_a_dob_is_matched_in_the_usual_formats(self, written):
         assert llm.drop_unstated_facts({"date_of_birth": "2005-05-14"}, written)["date_of_birth"] == "2005-05-14"
 
+    @pytest.mark.parametrize(
+        "written",
+        [
+            "DOB: 01-09-02", "DOB: 01/09/02", "DOB: 1.9.02", "DOB 1-Sep-02", "Born 1st Sep '02",
+            "DOB: 01 - 09 - 2002", "DOB: 01 / 09 / 2002", "Born 1 Sept. 2002", "Born Sept. 1, 2002",
+            "DOB: 09-01-02",
+        ],
+    )
+    def test_a_dob_with_a_two_digit_year_or_spaced_separators_is_matched(self, written):
+        """QA-2: these real ways of writing 1 September 2002 were dropped."""
+        assert llm.drop_unstated_facts({"date_of_birth": "2002-09-01"}, written)["date_of_birth"] == "2002-09-01"
+
+    @pytest.mark.parametrize("written, iso", [("DOB: 14/05/85", "1985-05-14"), ("DOB: 14-May-30", "2030-05-14"),
+                                              ("DOB: 14-May-31", "1931-05-14")])
+    def test_a_two_digit_year_pivots_at_30(self, written, iso):
+        assert llm.drop_unstated_facts({"date_of_birth": iso}, written)["date_of_birth"] == iso
+
     @pytest.mark.parametrize("written", ["Roll no 220200901", "Class of 2002, joined Sep 2001", "DOB: 2002"])
     def test_digits_that_merely_contain_the_date_do_not_count(self, written):
         assert llm.drop_unstated_facts({"date_of_birth": "2002-09-01"}, written)["date_of_birth"] is None
@@ -106,9 +123,133 @@ class TestStatedFactsMustBeOnThePage:
     def test_a_phone_is_compared_by_its_digits(self, phone, written, kept):
         assert llm.drop_unstated_facts({"phones": [phone]}, written)["phones"] == ([phone] if kept else [])
 
+    @pytest.mark.parametrize(
+        "written",
+        [
+            "Aarav\n9876543210\n2019-2023 BTech",
+            "Phone: 9876543210 2021 - 2025 B.Tech",
+            "9876543210 8.5",
+            "9876543210 9123456780",
+            "9123456780 9876543210",
+            "Mobile: (+91) 98765 43210",
+            "Tel 0091-9876543210",
+            "call 09876543210",
+        ],
+    )
+    def test_a_phone_next_to_another_number_is_still_found(self, written):
+        """QA-2: the old candidate regex ran across spaces into the next number."""
+        assert llm.drop_unstated_facts({"phones": ["9876543210"]}, written)["phones"] == ["9876543210"]
+
+    @pytest.mark.parametrize(
+        "written, kept",
+        [
+            ("+919876543210", True), ("919876543210", True), ("0919876543210", True),
+            ("00919876543210", True), ("+91 9876543210", True),
+            ("PRN 12349876543210", False), ("Roll no. 5559876543210", False),
+            ("ID 449876543210", False), ("+44 9876543210", False),
+        ],
+    )
+    def test_only_an_indian_or_trunk_prefix_may_stand_before_the_number(self, written, kept):
+        """QA-2: a long PRN ending in the same ten digits must not ground a phone."""
+        assert llm.drop_unstated_facts({"phones": ["9876543210"]}, written)["phones"] == (
+            ["9876543210"] if kept else []
+        )
+
+    @pytest.mark.parametrize(
+        "phone, kept",
+        [
+            ("9876543210", True), ("+91 98765 43210", True), ("09876543210", True), ("0091-9876543210", True),
+            ("+44 20 7946 0958", True), ("+1 415 555 0132", True), ("+65 6123 4567", True),
+            ("220200904", False), ("98765 4321", False), ("12345678901", False), ("+91 22020090", False),
+            ("+44 12345", False), ("+44 1234 5678 9012 3456", False), ("44 20 7946 0958", False),
+        ],
+    )
+    def test_a_phone_must_be_phone_shaped(self, phone, kept):
+        """
+        QA-2: the digits being on the page is not enough. Ten digits after
+        India's prefixes, or "+" with another country code and 8-15 digits.
+        """
+        assert llm.drop_unstated_facts({"phones": [phone]}, f"Phone: {phone}")["phones"] == (
+            [phone] if kept else []
+        )
+
+    @pytest.mark.parametrize("key", ["data_engineer", "mechanical_designer"])
+    def test_the_recorded_prn_read_as_a_phone_is_dropped(self, key):
+        """gemma4 returned the 9-digit PRN beside the email as the phone (Sana, Arjun)."""
+        prn = json.loads(recorded("no_thinking", key)["calls"][0]["content"])["phones"]
+        assert prn in (["220200904"], ["220200909"])
+
+        assert replay("no_thinking", key).data["phones"] == []
+
+    @pytest.mark.parametrize("key, prn", [("frontend_intern", "220200905"), ("marketing_executive", "220200910")])
+    def test_the_prn_beside_the_email_is_not_a_phone(self, key, prn):
+        """The same reading as re-analysis gave for Kabir and Ishita, built from their sample text."""
+        assert prn in SAMPLES[key].text
+        client = FakeLLMClient([resume_reply(phones=[prn])])
+
+        assert llm.parse_resume_facts(SAMPLES[key].text, client=client, today=TODAY).data["phones"] == []
+
+    def test_a_recorded_real_phone_is_kept(self):
+        assert replay("no_thinking", "civil_fresher").data["phones"] == ["+91 98220 11223"]
+
+    @pytest.mark.parametrize(
+        "phone, written, kept",
+        [
+            ("+91 98765 43210", "Mobile 09876543210", True),
+            ("+44 20 7946 0958", "Tel +44 20 7946 0958", True),
+            ("+44 20 7946 0958", "Tel 2079460958", False),
+        ],
+    )
+    def test_the_models_own_prefix_must_be_one_of_them_too(self, phone, written, kept):
+        assert llm.drop_unstated_facts({"phones": [phone]}, written)["phones"] == ([phone] if kept else [])
+
+    @pytest.mark.parametrize(
+        "email, written, kept",
+        [
+            ("john@gmail.com", "Email: bigjohn@gmail.com", False),
+            ("a@b.com", "aa@b.com.au", False),
+            ("a@b.com", "x.a@b.com", False),
+            ("a@b.com", "a@b.com-mail.net", False),
+            ("john@gmail.com", "Email: John@Gmail.com.", True),
+            ("john@gmail.com", "<john@gmail.com>", True),
+            ("mailto:john@gmail.com", "john@gmail.com | 98765", True),
+        ],
+    )
+    def test_an_email_must_be_written_whole(self, email, written, kept):
+        """QA-2: a substring check kept john@gmail.com for bigjohn@gmail.com."""
+        assert llm.drop_unstated_facts({"emails": [email]}, written)["emails"] == ([email] if kept else [])
+
     def test_an_age_must_be_written_as_a_number_of_its_own(self):
         assert llm.drop_unstated_facts({"age": 21}, "Age: 21")["age"] == 21
         assert llm.drop_unstated_facts({"age": 21}, "Batch of 2021, CGPA 8.21")["age"] is None
+
+    @pytest.mark.parametrize(
+        "written, kept",
+        [
+            ("Age: 21", True), ("Aged 21, from Pune", True), ("21 years old", True), ("21 yrs old", True),
+            ("AGE - 21", True),
+            ("Team of 21 engineers", False), ("Ranked 21 in the state", False),
+            ("Age: 23. Led a team of 21", False),
+        ],
+    )
+    def test_an_age_needs_an_age_cue_beside_it(self, written, kept):
+        """QA-2 (optional): a bare 21 anywhere on the page grounded age 21."""
+        assert llm.drop_unstated_facts({"age": 21}, written)["age"] == (21 if kept else None)
+
+    @pytest.mark.parametrize(
+        "written, kept",
+        [
+            ("Date of Birth: 01/09/2002", True), ("D.O.B. 01-09-2002", True),
+            ("Born on the 1st of September, 2002 in Pune", True),
+            ("Intern, Loadstar, 01/09/2002 - 30/11/2002", False),
+            ("Joined 1 Sep 2002", False),
+        ],
+    )
+    def test_a_dob_needs_a_birth_label_before_it(self, written, kept):
+        """QA-2 (optional): an internship's start date grounded a DOB."""
+        assert llm.drop_unstated_facts({"date_of_birth": "2002-09-01"}, written)["date_of_birth"] == (
+            "2002-09-01" if kept else None
+        )
 
 
 NO_THINKING_KEYS = sorted(path.stem for path in (FIXTURES / "no_thinking").glob("*.json"))
@@ -149,3 +290,24 @@ class TestTheEngineNeverReadsWorseThanRegex:
 
         for field in FIELDS:
             assert hits[("engine", field)] >= hits[("regex", field)], field
+
+    @pytest.mark.parametrize("key", NO_THINKING_KEYS)
+    def test_the_eval_blend_is_the_engines_own(self, key):
+        """
+        eval_extraction's `engine` column re-implements the blend so it costs
+        no second model call. Driving the real `MatchingEngine.analyse_resume`
+        on the same recorded reply holds the two together for the fields the
+        engine decides.
+        """
+        from matching.engine import MatchingEngine
+        from matching.management.commands.eval_extraction import engine_reading, llm_reading, regex_reading
+
+        sample = SAMPLES[key]
+        replies = [call["content"] for call in recorded("no_thinking", key)["calls"]]
+        blend = engine_reading(regex_reading(sample.text, TODAY), llm_reading(FakeLLMClient(replies))(sample.text, TODAY))
+
+        profile = MatchingEngine().analyse_resume(sample.text, client=FakeLLMClient(replies), today=TODAY)
+
+        assert profile.extraction_source == "llm"
+        assert blend["experience"] == pytest.approx(profile.experience_years)
+        assert blend["education"] == set(profile.education_levels)

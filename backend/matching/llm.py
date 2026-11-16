@@ -671,20 +671,37 @@ def _plain(value):
 
 _MONTH_WORD = r"(?P<mon>[A-Za-z]{3,9})\.?"
 _ORDINAL = r"(?:st|nd|rd|th)?"
+#: - / or . with optional spaces around it ("01 - 09 - 2002").
+_DATE_SEP = r"[ \t]*[-/.][ \t]*"
+#: Two-digit birth years: 00-30 are 2000-2030, 31-99 are 1931-1999.
+_CENTURY_PIVOT = 30
 _PAGE_DATES = [
     # 2002-09-01, 2002/9/1, 2002.09.01
     re.compile(r"(?<!\d)(?P<y>(?:19|20)\d{2})[-/.](?P<m>\d{1,2})[-/.](?P<d>\d{1,2})(?!\d)"),
-    # 01/09/2002, 1-9-2002, 01.09.2002, 01 09 2002: day first, and month first too
-    re.compile(r"(?<!\d)(?P<a>\d{1,2})[-/. ](?P<b>\d{1,2})[-/. ](?P<y>(?:19|20)\d{2})(?!\d)"),
-    # 1 September 2002, 1st Sep, 2002, 01-Sep-2002
+    # 01/09/2002, 1-9-2002, 01.09.2002, 01 09 2002, 01 - 09 - 2002: day first, and month first too
+    re.compile(rf"(?<!\d)(?P<a>\d{{1,2}})(?:{_DATE_SEP}| )(?P<b>\d{{1,2}})(?:{_DATE_SEP}| )(?P<y>(?:19|20)\d{{2}})(?!\d)"),
+    # 01-09-02, 1/9/02, 1.9.02: a separator is required, so "01 09 02" is not a date
+    re.compile(rf"(?<![\d.])(?P<a>\d{{1,2}}){_DATE_SEP}(?P<b>\d{{1,2}}){_DATE_SEP}(?P<yy>\d{{2}})(?!\d)(?!\.\d)"),
+    # 1 September 2002, 1st Sep, 2002, 01-Sep-2002, 1 Sept. 2002
     re.compile(rf"(?<!\d)(?P<d>\d{{1,2}}){_ORDINAL}[\s\-,]{{1,3}}(?:of\s+)?{_MONTH_WORD}[\s\-,']{{1,3}}(?P<y>(?:19|20)\d{{2}})(?!\d)", re.IGNORECASE),
+    # 1-Sep-02, 1st Sep '02
+    re.compile(rf"(?<!\d)(?P<d>\d{{1,2}}){_ORDINAL}[\s\-,]{{1,3}}(?:of\s+)?{_MONTH_WORD}[\s\-,']{{1,3}}(?P<yy>\d{{2}})(?!\d)", re.IGNORECASE),
     # September 1, 2002
     re.compile(rf"{_MONTH_WORD}\s{{1,3}}(?P<d>\d{{1,2}}){_ORDINAL},?\s{{1,3}}(?P<y>(?:19|20)\d{{2}})(?!\d)", re.IGNORECASE),
 ]
 
 
-def _dates_on_page(text: str) -> set[str]:
-    """Every full calendar date the text writes, as ISO strings."""
+#: What a resume writes before its date of birth.
+_BIRTH_LABEL = re.compile(r"\b(?:d\.?\s?o\.?\s?b\b|date\s+of\s+birth|birth\s*date|born)", re.IGNORECASE)
+_BIRTH_LABEL_REACH = 40
+
+
+def _dates_on_page(text: str, *, birth_labelled: bool = False) -> set[str]:
+    """
+    Every full calendar date the text writes, as ISO strings. With
+    `birth_labelled`, only those with a DOB label shortly before them, so an
+    internship's start date cannot stand in for a date of birth.
+    """
     found: set[str] = set()
 
     def add(year, month, day):
@@ -695,7 +712,13 @@ def _dates_on_page(text: str) -> set[str]:
 
     for pattern in _PAGE_DATES:
         for match in pattern.finditer(text):
+            before = text[max(0, match.start() - _BIRTH_LABEL_REACH):match.start()]
+            if birth_labelled and not _BIRTH_LABEL.search(before):
+                continue
             group = match.groupdict()
+            if group.get("yy") is not None:
+                yy = int(group["yy"])
+                group["y"] = (2000 if yy <= _CENTURY_PIVOT else 1900) + yy
             if group.get("mon") is not None:
                 month = _MONTHS.get(group["mon"][:3].lower())
                 if month:
@@ -708,30 +731,84 @@ def _dates_on_page(text: str) -> set[str]:
     return found
 
 
-_PHONE_LIKE = re.compile(r"\+?\d[\d\s\-().]{5,}\d")
+#: Between two digits of one written number: at most one of - . ) ( or a
+#: single space, never a line break or a run of spaces.
+_PHONE_GAP = r"(?:\)?[ \-.]?\(?)"
+#: The prefixes allowed before an Indian 10-digit number: India's country
+#: code (+91, 091, 0091) or the trunk 0. Nothing else, so a longer run of
+#: digits that merely ends in the same ten (a PRN, a roll number) is not it.
+_PHONE_PREFIXES = ("", "0", "91", "091", "0091")
+_PHONE_PREFIX = r"(?:\(?\+?(?:0091|091|91|0)\)?[ \-]?)"
+
+
+def _international(phone: str) -> bool:
+    """Written with "+" and a country code other than India's."""
+    digits = re.sub(r"\D", "", phone or "")
+    return (phone or "").strip().startswith("+") and not digits.startswith("91")
+
+
+def _phone_shaped(phone: str) -> bool:
+    """
+    Ten digits after India's prefixes, or "+" with another country code and
+    8-15 digits (E.164's longest). gemma4 read the 9-digit PRN beside the
+    email as a phone; it is on the page, but it is not one. This is the same
+    line `verification.normalise_phones` draws: under ten digits is no phone.
+    """
+    digits = re.sub(r"\D", "", phone or "")
+    if _international(phone):
+        return 8 <= len(digits) <= 15
+    return len(digits) >= 10 and digits[:-10] in _PHONE_PREFIXES
 
 
 def _phone_on_page(phone: str, text: str) -> bool:
-    """The number's digits are written as one number, give or take a country code."""
+    """
+    The number's digits are written as one standalone number, give or take
+    a country code. The digits are matched themselves, with only the
+    separators a phone is written with between them, so a number standing
+    next to another ("9876543210 2021 - 2025") is still found, and one that
+    is the tail of a longer run of digits is not.
+    """
     digits = re.sub(r"\D", "", phone or "")
     if len(digits) < 7:
         return False
-    for match in _PHONE_LIKE.finditer(text):
-        written = re.sub(r"\D", "", match.group(0))
-        if written == digits or (len(digits) >= 10 and len(written) >= 10 and (
-            written.endswith(digits[-10:]) and digits.endswith(written[-10:])
-        )):
-            return True
-    return False
+    indian = not _international(phone) and len(digits) >= 10 and digits[:-10] in _PHONE_PREFIXES
+    # Any other number (a landline, another country) is written out in full.
+    body = digits[-10:] if indian else digits
+    written = _PHONE_GAP.join(re.escape(d) for d in body)
+    # With no prefix of its own, the number must not follow another country's
+    # "+44 " either; a plain number before it ("2021 9876543210") is fine.
+    other_country = r"(?<!\+\d[ \-])(?<!\+\d\d[ \-])(?<!\+\d\d\d[ \-])"
+    start = rf"(?:{_PHONE_PREFIX}|{other_country}\(?)" if indian else r"\(?\+?"
+    pattern = rf"(?<![\d+]){start}{written}(?!\d)"
+    return re.search(pattern, text) is not None
 
 
 def _email_on_page(email: str, text: str) -> bool:
+    """
+    The address is written whole, case aside: not as the tail of a longer
+    local part ("bigjohn@") nor the head of a longer domain (".com.au").
+    A sentence's full stop after it is fine.
+    """
     email = (email or "").strip().lower().removeprefix("mailto:")
-    return bool(email) and email in text.lower()
+    if not email:
+        return False
+    pattern = rf"(?<![\w.+-]){re.escape(email)}(?!\.?[\w-])"
+    return re.search(pattern, text, re.IGNORECASE) is not None
+
+
+_AGE_BEFORE = re.compile(r"\bage[d]?\b", re.IGNORECASE)
+_AGE_AFTER = re.compile(r"^\s*(?:years?|yrs?)[\s\-]*old\b", re.IGNORECASE)
+_AGE_CUE_REACH = 15
 
 
 def _age_on_page(age: int, text: str) -> bool:
-    return re.search(rf"(?<![\d.]){age}(?![\d.])", text) is not None
+    """The age is written as a number of its own, with "age" or "years old" beside it."""
+    for match in re.finditer(rf"(?<![\d.]){age}(?![\d.])", text):
+        before = text[max(0, match.start() - _AGE_CUE_REACH):match.start()]
+        after = text[match.end():match.end() + _AGE_CUE_REACH]
+        if _AGE_BEFORE.search(before) or _AGE_AFTER.match(after):
+            return True
+    return False
 
 
 def drop_unstated_facts(data: dict, text: str) -> dict:
@@ -741,13 +818,15 @@ def drop_unstated_facts(data: dict, text: str) -> dict:
     """
     data = dict(data)
     dropped = []
-    if data.get("date_of_birth") and data["date_of_birth"] not in _dates_on_page(text):
+    if data.get("date_of_birth") and data["date_of_birth"] not in _dates_on_page(text, birth_labelled=True):
         data["date_of_birth"] = None
         dropped.append("date_of_birth")
     if data.get("age") is not None and not _age_on_page(data["age"], text):
         data["age"] = None
         dropped.append("age")
-    phones = [phone for phone in data.get("phones") or [] if _phone_on_page(phone, text)]
+    phones = [
+        phone for phone in data.get("phones") or [] if _phone_shaped(phone) and _phone_on_page(phone, text)
+    ]
     if len(phones) != len(data.get("phones") or []):
         dropped.append("phones")
     emails = [email for email in data.get("emails") or [] if _email_on_page(email, text)]
