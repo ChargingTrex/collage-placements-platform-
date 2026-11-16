@@ -45,6 +45,8 @@ Format: `- [ ] ID: what. **Pass when:** ... **Evidence:** _(the verifier fills t
   - seeded
   - persona student pre-analysed with Gemma
   - JD search returns ranked students
+
+  *Progress, verifier, 2026-11-16 21:05 IST:* P merged (`0e6503a`, fixes `7a0178b`, `ac83a73`); demo DB seeded (284 accounts); the persona student and three more pre-analysed with Gemma (see P6). Pending: JD search on real embeddings, which waits for V. The DB already holds 4 `nomic-embed-text` vectors of 768 dimensions and 4 role categories.
 - [ ] M2: The morning-of checklist in `WEEKEND_DEMO_PLAN.md` can be followed as written; commands checked.
 - [ ] M3: The merge freeze is respected. No merges in the last hour before the demo.
 - [ ] M4: The Mac is quiet before the Gemma warm-up. **Pass when:** no agent sessions or test runs are active, `uptime` load is below the core count, swap is not growing, and at least 5 GB of disk is free. *Added by the verifier: at 12:00 on 2026-11-16, with the builders running, load was 554, swap 20.2 of 20.7 GB and free disk 0.5 GB; a full backend run took 76 minutes and a pytest run lost its output to a full disk. F2's timings do not hold in that state.*
