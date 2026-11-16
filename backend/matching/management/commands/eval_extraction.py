@@ -70,7 +70,16 @@ def llm_reading(client):
 
 
 def engine_reading(regex: dict, model: dict | None) -> dict:
-    """The engine's blend of the two readings (`MatchingEngine.analyse_resume`)."""
+    """
+    What the portal ends up with, from the two readings already made.
+
+    Experience and education follow `MatchingEngine.analyse_resume`; the
+    engine decides only those two. Age and CGPA follow what the admin is
+    shown, `profiles.verification.resume_facts_admin`: the model's value,
+    else regex's. Re-implemented here so the column costs no second model
+    call; `test_gemma_replies.py` drives the real engine on the recorded
+    replies and holds the two together.
+    """
     if model is None:
         return dict(regex)
     return {
