@@ -239,9 +239,11 @@ class UserDirectorySummaryView(APIView):
         by_status.update(dict(users.values_list("status").annotate(n=Count("id")).order_by()))
 
         student_prns = users.filter(role=Role.STUDENT).values("prn")
-        batches = sorted(
+        # order_by() first: the roster's default ordering (prn) would otherwise
+        # join the SELECT DISTINCT and return one batch per student.
+        batches = list(
             Student.objects.filter(prn__in=student_prns)
-            .values_list("batch", flat=True).distinct()
+            .order_by("batch").values_list("batch", flat=True).distinct()
         )
         return Response(
             {
