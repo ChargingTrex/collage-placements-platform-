@@ -108,10 +108,10 @@ class _BudgetedClient:
 
     The retry after an invalid reply is allowed only when what is left could
     fit another call as long as the first one. On the demo's CPU one Gemma
-    reply takes about 90 s, so inside a request budget a retry could only
-    time out, and would take the embedding's seconds with it. With no
-    practical budget (`manage.py analyze_resumes` run with a large one) the
-    retry still happens.
+    reply takes 70-170 s, so inside a request budget a retry after a slow
+    reply could only time out, and would take the embedding's seconds with
+    it. With no practical budget (`manage.py analyze_resumes` run with a
+    large one) the retry still happens.
     """
 
     def __init__(self, inner: llm.LLMClient, deadline: float):

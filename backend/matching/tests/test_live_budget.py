@@ -1,9 +1,9 @@
 """
 G4: on the live analysis path a retry that cannot fit the budget is skipped.
 
-One gemma4:e4b reply takes about 90 s on the demo Mac's CPU. Two cannot fit
-under the 120 s request timeout, and a retry given only the leftover seconds
-would time out and take the embedding's time with it.
+One gemma4:e4b reply takes 70-170 s on the demo Mac's CPU. After a slow one,
+a retry given only the leftover seconds of the 220 s budget would time out
+and take the embedding's time with it.
 """
 
 import pytest
