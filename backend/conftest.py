@@ -10,6 +10,15 @@ import pytest
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
+# Every test clears the default cache (`_reset_throttles`). A demo .env with
+# CACHE_BACKEND=file would let that wipe the shared cache the server reads
+# its pre-read JDs from, so the suite always uses per-process memory.
+# Nothing has touched a cache yet, so replacing the setting is enough.
+os.environ["CACHE_BACKEND"] = "locmem"
+from django.conf import settings as _settings  # noqa: E402
+
+_settings.CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
 
 @pytest.fixture(autouse=True)
 def _isolated_media(tmp_path, settings):

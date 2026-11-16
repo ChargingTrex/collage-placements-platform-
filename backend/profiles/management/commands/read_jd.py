@@ -74,12 +74,17 @@ class Command(BaseCommand):
 
         embedder = get_embedder(client)
         vector = embedder.try_embed(text)
-        _record_once(text, facts, vector, embedder.model if vector is not None else None)
+        if vector is None:
+            # Recording now would mark the JD as counted and leave its
+            # category without a centroid for good. The reading is cached,
+            # so a rerun costs only the embedding.
+            raise CommandError("The JD was read but could not be embedded; nothing recorded. Run it again.")
+        _record_once(text, facts, vector, embedder.model)
 
         self.stdout.write(
             self.style.SUCCESS(
                 f"Read: {facts.canonical_role or '(no role)'}; required {', '.join(facts.required_skills) or '-'}; "
-                f"{'embedded' if vector is not None else 'NOT embedded'} ({client.model})."
+                f"embedded ({client.model}, {embedder.model})."
             )
         )
         if not no_recategorise:

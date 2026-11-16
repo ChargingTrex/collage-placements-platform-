@@ -105,6 +105,23 @@ class TestReadJdCommand:
             call_command("read_jd", "-", stdin=io.StringIO(SAMPLE_JOB_DESCRIPTION))
         assert not RoleCategory.objects.exists()
 
+    def test_a_failed_embedding_records_nothing_so_a_rerun_can(self, llm_on):
+        """Recording without the vector would set the once-per-JD marker
+        and leave the category without a centroid for good."""
+
+        class NoEmbeddings(FakeLLMClient):
+            def embed(self, texts):
+                raise llm.LLMUnavailable("embeddings down")
+
+        llm_on(NoEmbeddings(lambda s, u: job_reply()))
+        with pytest.raises(CommandError):
+            call_command("read_jd", "-", stdin=io.StringIO(SAMPLE_JOB_DESCRIPTION))
+        assert not RoleCategory.objects.exists()
+
+        llm_on(FakeLLMClient(no_chat))  # the rerun reuses the cached reading
+        call_command("read_jd", "-", stdin=io.StringIO(SAMPLE_JOB_DESCRIPTION))
+        assert RoleCategory.objects.get().centroid_model == "fake-embed"
+
     def test_a_too_short_jd_is_refused(self, llm_on):
         llm_on()
         with pytest.raises(CommandError):
@@ -172,6 +189,8 @@ _READ_CACHES = """
 import json, os, sys
 sys.path.insert(0, os.getcwd())
 os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
+import dotenv
+dotenv.load_dotenv = lambda *a, **k: False  # defaults, not a developer .env
 from django.conf import settings
 print(json.dumps({k: str(v) for k, v in settings.CACHES["default"].items() if k in ("BACKEND", "LOCATION")}))
 """
@@ -187,6 +206,16 @@ def read_caches(**env):
 
 
 class TestCacheBackend:
+    def test_the_suite_never_uses_the_shared_cache(self):
+        """
+        Every test clears the default cache. With a demo .env saying
+        CACHE_BACKEND=file, that would wipe the pre-read JD readings, so
+        the suite pins the cache to per-process memory whatever .env says.
+        """
+        from django.conf import settings
+
+        assert settings.CACHES["default"]["BACKEND"].endswith("LocMemCache")
+
     def test_the_default_is_per_process_memory(self):
         result = read_caches()
         assert json.loads(result.stdout)["BACKEND"].endswith("LocMemCache")

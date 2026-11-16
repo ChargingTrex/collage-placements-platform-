@@ -28,6 +28,8 @@ _READ = """
 import json, os, sys
 sys.path.insert(0, os.getcwd())
 os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
+import dotenv
+dotenv.load_dotenv = lambda *a, **k: False  # defaults, not a developer .env
 from django.conf import settings
 paths = json.loads(sys.argv[1])
 out = {}
@@ -42,7 +44,6 @@ print(json.dumps(out))
 
 def read_settings(**env) -> dict:
     clean = {k: v for k, v in os.environ.items() if k not in MEASURED}
-    # A developer .env that sets one of these overrides the default checks.
     clean.update(env)
     result = subprocess.run(
         [sys.executable, "-c", _READ, json.dumps(MEASURED)],
