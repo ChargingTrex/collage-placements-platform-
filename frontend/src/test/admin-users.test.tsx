@@ -235,6 +235,11 @@ describe('all users page', () => {
     await screen.findByText('220200901')
     // The summary fills the school and batch options.
     await screen.findByRole('option', { name: 'School of Business' })
+    // One option per batch and per school, straight from the summary.
+    expect(
+      within(screen.getByLabelText('Batch')).getAllByRole('option').map((o) => o.textContent),
+    ).toEqual(['All batches', '2026', '2027'])
+    expect(within(screen.getByLabelText('School')).getAllByRole('option')).toHaveLength(3)
 
     await user.selectOptions(screen.getByLabelText('Role'), 'student')
     await user.selectOptions(screen.getByLabelText('Status'), 'active')

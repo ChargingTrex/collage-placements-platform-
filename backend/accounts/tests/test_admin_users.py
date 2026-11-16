@@ -317,5 +317,27 @@ class TestSummary:
         assert {"key": "business", "name": "School of Business"} in summary["schools"]
         assert summary["batches"] == [2026, 2027]
 
+    def test_batch_and_school_options_are_unique_however_many_students_share_them(
+        self, as_admin
+    ):
+        # Found on the real demo seed: one batch entry per student, because
+        # the roster's default ordering leaked into SELECT DISTINCT.
+        for n in range(12):
+            roster = Student.objects.create(
+                prn=f"2202009{n + 60:02d}", email=f"cohort{n}@college.edu",
+                full_name=f"Cohort Student {n}", department="B.Tech Computer Science",
+                batch=2026 if n % 3 else 2027,
+                school="computing_data_science" if n % 2 else "business",
+            )
+            User.objects.create_user(
+                email=roster.email, password="StudentPass!234", role=Role.STUDENT,
+                prn=roster.prn, full_name=roster.full_name,
+            ).mark_verified()
+
+        summary = as_admin.get(SUMMARY).json()
+        assert summary["batches"] == [2026, 2027]
+        keys = [school["key"] for school in summary["schools"]]
+        assert len(keys) == len(set(keys))
+
     def test_an_unknown_parameter_is_a_400(self, as_admin):
         assert as_admin.get(SUMMARY, {"role": "student"}).status_code == 400
