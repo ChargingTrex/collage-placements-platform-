@@ -253,3 +253,24 @@ class TestTheEngineNeverReadsWorseThanRegex:
 
         for field in FIELDS:
             assert hits[("engine", field)] >= hits[("regex", field)], field
+
+    @pytest.mark.parametrize("key", NO_THINKING_KEYS)
+    def test_the_eval_blend_is_the_engines_own(self, key):
+        """
+        eval_extraction's `engine` column re-implements the blend so it costs
+        no second model call. Driving the real `MatchingEngine.analyse_resume`
+        on the same recorded reply holds the two together for the fields the
+        engine decides.
+        """
+        from matching.engine import MatchingEngine
+        from matching.management.commands.eval_extraction import engine_reading, llm_reading, regex_reading
+
+        sample = SAMPLES[key]
+        replies = [call["content"] for call in recorded("no_thinking", key)["calls"]]
+        blend = engine_reading(regex_reading(sample.text, TODAY), llm_reading(FakeLLMClient(replies))(sample.text, TODAY))
+
+        profile = MatchingEngine().analyse_resume(sample.text, client=FakeLLMClient(replies), today=TODAY)
+
+        assert profile.extraction_source == "llm"
+        assert blend["experience"] == pytest.approx(profile.experience_years)
+        assert blend["education"] == set(profile.education_levels)
