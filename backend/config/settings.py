@@ -10,6 +10,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 import os
 
@@ -306,7 +307,34 @@ MATCH_SCORE = {
     # With no embedder, /api/matching/search scores visible profiles one by
     # one on the similarity backend; this caps how many.
     "FALLBACK_MAX_PROFILES": int(os.getenv("MATCH_FALLBACK_MAX_PROFILES", 500)),
+    # Inside a live JD search, the chat model's reading of a JD it has not
+    # read before gets only this long (the embedding goes first, on the full
+    # analysis budget). A CPU model takes a minute, so a miss falls back to
+    # the text reading at once and the search still ranks on vectors. Read
+    # demo JDs ahead with `manage.py read_jd`: a cached reading costs nothing.
+    "JD_READING_BUDGET_SECONDS": float(os.getenv("JD_READING_BUDGET_SECONDS", 3)),
 }
+
+# --- Cache ------------------------------------------------------------------
+# What the cache holds: JD readings (a day), the "this JD fed a category"
+# markers, and the API throttle counters.
+#   locmem (default)  per process: lost on restart, not shared by workers
+#   file              FileBasedCache at CACHE_LOCATION: survives restarts and
+#                     is shared by every gunicorn worker on the machine, so a
+#                     JD pre-read with `manage.py read_jd` is a hit for all
+CACHE_BACKEND = os.getenv("CACHE_BACKEND", "locmem").strip().lower()
+if CACHE_BACKEND == "locmem":
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+elif CACHE_BACKEND == "file":
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+            "LOCATION": os.getenv("CACHE_LOCATION", str(BASE_DIR / ".cache")),
+            "OPTIONS": {"MAX_ENTRIES": 10_000},
+        }
+    }
+else:
+    raise ImproperlyConfigured(f"Unknown CACHE_BACKEND '{CACHE_BACKEND}'. Use locmem or file.")
 
 # Role categories learnt from recruiters' JDs (matching/categories.py).
 # MERGE_THRESHOLD is a raw embedding cosine between a JD and a same-titled

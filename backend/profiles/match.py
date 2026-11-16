@@ -97,7 +97,9 @@ def read_job(jd_text: str, *, record: bool = False) -> Job:
     costs at most that before the request falls back to the text reading.
     The embedding goes first: it takes a second where the chat reading can
     take longer than the whole budget on a CPU, and a reading that ran out
-    of time must not also cost the search its vector ranking.
+    of time must not also cost the search its vector ranking. The reading
+    itself gets only `MATCH_SCORE["JD_READING_BUDGET_SECONDS"]`, so an
+    unread JD falls back to the text reading in seconds, not minutes.
 
     With `record` (company and admin requests), a JD the model has read
     feeds the role categories (Task 7), once per JD. A student's JD never
@@ -111,8 +113,11 @@ def read_job(jd_text: str, *, record: bool = False) -> Job:
         embedder = get_embedder(budgeted)
         vector = embedder.try_embed(jd_text)
         model = embedder.model
+        # A cached reading never reaches the client; a miss gets a short
+        # budget of its own (`manage.py read_jd` fills the cache ahead).
+        reading_deadline = min(deadline, time.monotonic() + settings.MATCH_SCORE["JD_READING_BUDGET_SECONDS"])
         try:
-            facts = llm.parse_job_description(jd_text, client=budgeted)
+            facts = llm.parse_job_description(jd_text, client=_BudgetedClient(client, reading_deadline))
         except llm.LLMUnavailable as exc:
             logger.warning("JD reading fell back to the text: %s", exc)
     if record and facts is not None:
