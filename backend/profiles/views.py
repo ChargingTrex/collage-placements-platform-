@@ -693,15 +693,28 @@ class CompanyProfileViewSet(
             )
 
         if request.method == "DELETE":
-            CompanyShortlist.objects.filter(company=company, profile=profile).delete()
+            from opportunities.services import has_active_application
+
+            rows = CompanyShortlist.objects.filter(company=company, profile=profile)
+            # D27: an applicant stays visible to the company they applied to, so
+            # un-shortlisting only withdraws the recruiter's pick; the row
+            # goes only when nothing else justifies it.
+            if has_active_application(company, profile):
+                rows.update(source=CompanyShortlist.Source.APPLICATION, note="")
+            else:
+                rows.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         serializer = ShortlistSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # D27: a recruiter's pick upgrades a row that applying created.
         CompanyShortlist.objects.update_or_create(
             company=company,
             profile=profile,
-            defaults={"note": serializer.validated_data.get("note", "")},
+            defaults={
+                "note": serializer.validated_data.get("note", ""),
+                "source": CompanyShortlist.Source.MANUAL,
+            },
         )
         return Response({"shortlisted": True}, status=status.HTTP_201_CREATED)
 

@@ -55,6 +55,15 @@ def marksheet_upload_path(instance, filename: str) -> str:
     return f"marksheets/{prn}/{_slugged_name(filename)}"
 
 
+def application_resume_upload_path(instance, filename: str) -> str:
+    """
+    `upload_to` for the resume copied onto an application:
+    applications/<prn>/<random>.<ext>. The Application carries the frozen PRN.
+    """
+    prn = getattr(instance, "prn", None) or "unknown"
+    return f"applications/{prn}/{_slugged_name(filename)}"
+
+
 def validate_upload(file_obj, allowed_extensions: set[str] = RESUME_EXTENSIONS) -> None:
     """Reject wrong extensions and oversized files before anything is stored."""
     suffix = Path(file_obj.name).suffix.lower()

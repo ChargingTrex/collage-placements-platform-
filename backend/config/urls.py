@@ -8,6 +8,8 @@ urlpatterns = [
     path("api/roster/", include("roster.urls")),
     path("api/profiles/", include("profiles.urls")),
     path("api/matching/", include("matching.urls")),
+    path("api/opportunities/", include("opportunities.urls")),
+    path("api/notifications/", include("notifications.urls")),
 ]
 
 # The admin site is served only when settings.ADMIN_ENABLED (default: DEBUG),
