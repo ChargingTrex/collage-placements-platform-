@@ -1,5 +1,18 @@
 # Live run: Gemma + MongoDB, locally
 
+## Status (2026-11-16)
+
+| Step | State | Notes |
+| --- | --- | --- |
+| 1. Docker + MongoDB | **Blocked** | Docker Desktop is stuck at "starting" (since 06:23 UTC). Needs a quit/restart with its memory lowered to about 4 GB (Settings → Resources). `pymongo` 4.10.1 is installed |
+| 2. Diagnose Gemma failures | Done | All 4 "unavailable" resumes succeed on re-run, first attempt, valid JSON. They take 173–387 s each, so the earlier failures were timeouts under memory pressure. 0 experience on dateless resumes is correct (claim-only; the engine uses the regex claim). No code change needed |
+| 3. Gemma in the local flow | Done | `.env` at the repo root (git-ignored): Gemma, `nomic-embed-text`, a 600 s budget, MongoDB when available. A root `conftest.py` fixture keeps tests offline. Full suite 1038 passed (`2ed4fe1`) |
+| 4. Calibration | Done | Embedding floor/ceiling 0.50/0.85, measured on the samples (`2ed4fe1`). The merge-threshold check is still to do; it needs the API run |
+| 5. End-to-end through the API | Waiting on step 1 | |
+| 6. Record, verify, commit | Waiting on step 5 | |
+
+While `.env` sets `MONGO_URI`, `test_real_mongo_round_trip` runs instead of skipping, and fails until MongoDB is up.
+
 ## Context
 
 The resume-intelligence plan is signed off **offline only** (LLM off, local vector store). Its last open gate is the live run in plan §5.4. That run was impossible before because there was no network, no Ollama and no MongoDB. This Mac now has all three:
