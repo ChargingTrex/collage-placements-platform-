@@ -11,6 +11,7 @@ const NAV_BY_ROLE = {
     { to: '/student', label: 'Dashboard', end: true },
     { to: '/student/profile', label: 'My profile' },
     { to: '/student/jobs', label: 'Jobs' },
+    { to: '/student/suggestions', label: 'Suggestions' },
     { to: '/student/applications', label: 'My applications' },
     { to: '/student/notifications', label: 'Notifications' },
   ],
@@ -29,6 +30,7 @@ const NAV_BY_ROLE = {
     { to: '/company', label: 'Dashboard', end: true },
     { to: '/company/students', label: 'Browse students' },
     { to: '/company/opportunities', label: 'My postings' },
+    { to: '/company/shortlist', label: 'Shortlist' },
   ],
 } as const
 

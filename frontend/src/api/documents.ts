@@ -65,16 +65,9 @@ export function filenameFromDisposition(header: string | null | undefined): stri
   return name || null
 }
 
-/**
- * Save an authenticated file through the bearer fetch. The server's
- * Content-Disposition name wins; `fallbackName` covers a missing header.
- */
-export async function downloadFile(url: string, fallbackName: string): Promise<void> {
-  const response = await fetchAuthed(url)
-  if (!response.ok) throw await failure(response, 'Nothing to download.')
-  const filename =
-    filenameFromDisposition(response.headers?.get('Content-Disposition')) ?? fallbackName
-  const objectUrl = URL.createObjectURL(await response.blob())
+/** Save bytes under a name, through a temporary link. */
+export function saveBlob(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = objectUrl
   link.download = filename
@@ -82,4 +75,22 @@ export async function downloadFile(url: string, fallbackName: string): Promise<v
   link.click()
   link.remove()
   URL.revokeObjectURL(objectUrl)
+}
+
+/**
+ * Save an authenticated file through the bearer fetch. The server's
+ * Content-Disposition name wins; `fallbackName` covers a missing header.
+ * Returns the response headers so a caller can read extras such as
+ * X-Skipped-Without-Resume.
+ */
+export async function downloadFile(
+  url: string,
+  fallbackName: string,
+): Promise<Headers | undefined> {
+  const response = await fetchAuthed(url)
+  if (!response.ok) throw await failure(response, 'Nothing to download.')
+  const filename =
+    filenameFromDisposition(response.headers?.get('Content-Disposition')) ?? fallbackName
+  saveBlob(await response.blob(), filename)
+  return response.headers
 }

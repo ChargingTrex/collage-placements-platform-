@@ -23,6 +23,8 @@ import ApplicantsPage from '@/pages/company/ApplicantsPage'
 import OpportunitiesPage from '@/pages/company/OpportunitiesPage'
 import ApplicationsPage from '@/pages/student/ApplicationsPage'
 import JobsPage from '@/pages/student/JobsPage'
+import SuggestionsPage from '@/pages/student/SuggestionsPage'
+import ShortlistPage from '@/pages/company/ShortlistPage'
 import NotificationsPage from '@/pages/student/NotificationsPage'
 import CompanyHome from '@/pages/company/CompanyHome'
 import StudentDetailPage from '@/pages/company/StudentDetailPage'
@@ -211,6 +213,9 @@ function AppRoutes() {
       <Route path="/student/jobs" element={<Shell><RequireRole role="student"><JobsPage /></RequireRole></Shell>} />
       <Route path="/student/applications" element={<Shell><RequireRole role="student"><ApplicationsPage /></RequireRole></Shell>} />
       <Route path="/student/notifications" element={<Shell><RequireRole role="student"><NotificationsPage /></RequireRole></Shell>} />
+
+      <Route path="/student/suggestions" element={<Shell><RequireRole role="student"><SuggestionsPage /></RequireRole></Shell>} />
+      <Route path="/company/shortlist" element={<Shell><RequireRole role="company"><ShortlistPage /></RequireRole></Shell>} />
 
       <Route path="/company/opportunities" element={<Shell><RequireRole role="company"><OpportunitiesPage /></RequireRole></Shell>} />
       <Route path="/company/opportunities/:opportunityId/applicants" element={<Shell><RequireRole role="company"><ApplicantsPage /></RequireRole></Shell>} />

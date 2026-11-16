@@ -232,6 +232,15 @@ export interface OwnProfile {
   updated_at: string
 }
 
+export interface ShortlistContactsExport {
+  password: string
+  filename: string
+  zip_base64: string
+  row_count: number
+}
+
+export const SHORTLIST_RESUMES_URL = '/api/profiles/students/shortlist/resumes'
+
 export interface CompanyProfile {
   id: string
   /** What a client addresses this profile by. PRN is display and reconciliation only. */
@@ -481,6 +490,11 @@ export const profilesApi = {
 
   searchStudents: (params: StudentSearchParams = {}) =>
     api.get<Paginated<CompanyProfile>>(`/api/profiles/students${query(params)}`),
+  shortlistedStudents: () =>
+    api.get<Paginated<CompanyProfile>>('/api/profiles/students?shortlisted=true'),
+  /** The AES-256 contacts zip. The password is in the body and is shown once. */
+  exportShortlistContacts: () =>
+    api.post<ShortlistContactsExport>('/api/profiles/students/shortlist/contacts'),
   student: (studentId: string) => api.get<CompanyProfile>(`/api/profiles/students/${studentId}`),
   shortlist: (studentId: string, note = '') =>
     api.post<{ shortlisted: boolean }>(`/api/profiles/students/${studentId}/shortlist`, { note }),

@@ -198,6 +198,13 @@ export function rowsOf<T>(body: Paginated<T> | T[]): T[] {
   return Array.isArray(body) ? body : body.results
 }
 
+export interface SuggestionsResponse {
+  results: FeedRow[]
+  open_count: number
+  /** Why `results` is empty: nothing posted at all, or nothing scored high enough. */
+  reason: 'no_open_postings' | 'none_match' | null
+}
+
 const BASE = '/api/opportunities'
 
 export const opportunitiesApi = {
@@ -213,6 +220,7 @@ export const opportunitiesApi = {
   approve: (id: string) => api.post<Opportunity>(`${BASE}/${id}/approve`),
   reject: (id: string, reason: string) => api.post<Opportunity>(`${BASE}/${id}/reject`, { reason }),
   close: (id: string) => api.post<Opportunity>(`${BASE}/${id}/close`),
+  suggestions: () => api.get<SuggestionsResponse>(`${BASE}/suggestions`),
   feed: async () => rowsOf(await api.get<Paginated<FeedRow> | FeedRow[]>(`${BASE}/feed`)),
   apply: (id: string) => api.post<StudentApplication>(`${BASE}/${id}/apply`),
   screen: (id: string, input: ScreenInput) =>
