@@ -611,10 +611,16 @@ def _document(text: str) -> str:
 def _ask(client: LLMClient, system: str, text: str, normalise, serializer_class) -> dict:
     """
     One question, validated; one retry with the errors; then LLMUnavailable.
+
+    A client may veto the retry with `may_retry()`: the live analysis path
+    does when what is left of its time budget could not fit another call,
+    so a bad first reply falls back at once instead of timing out later.
     """
     prompt = _document(text)
     errors: str | None = None
     for attempt in (1, 2):
+        if attempt == 2 and not getattr(client, "may_retry", lambda: True)():
+            raise LLMUnavailable(f"The model's reply was invalid and there is no time to retry: {errors}")
         user = prompt if errors is None else (
             f"{prompt}\n\nYour previous reply was invalid: {errors}\n"
             "Reply again with corrected JSON only."
