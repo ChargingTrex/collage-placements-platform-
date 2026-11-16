@@ -39,3 +39,6 @@ DEMO_LOGINS.md
 
 # File cache (CACHE_BACKEND=file default location)
 /backend/.cache/
+
+# E2E run folders (backend/e2e/run.py)
+backend/e2e/.runs/
