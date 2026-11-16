@@ -15,7 +15,6 @@ from core.storage import (
 )
 from profiles.models import (
     CareerPath,
-    CompanyShortlist,
     EducationLevel,
     ExperienceEntry,
     ProfileSkill,
@@ -411,8 +410,16 @@ class CompanyProfileSerializer(_BaseProfileSerializer):
         request = self.context.get("request")
         if not request or not request.user.is_authenticated or not request.user.is_company:
             return False
-        return CompanyShortlist.objects.filter(
-            company=request.user.company_id, profile=profile
+        # A list view may annotate every row in one query (Stage 4).
+        annotated = getattr(profile, "is_shortlisted", None)
+        if annotated is not None:
+            return bool(annotated)
+        # D27: a manual pick, or an application the company moved on. An
+        # application alone only grants visibility; it is not a pick.
+        from opportunities.shortlist import shortlist_condition
+
+        return type(profile).objects.filter(
+            shortlist_condition(request.user.company_id), pk=profile.pk
         ).exists()
 
 

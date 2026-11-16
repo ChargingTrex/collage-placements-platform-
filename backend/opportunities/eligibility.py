@@ -29,11 +29,13 @@ def check_eligibility(opportunity, student) -> tuple[bool, list[str]]:
             f"your department is {student.department or 'not recorded'}."
         )
 
-    minimum = opportunity.min_cgpa
+    minimum = None if opportunity.min_cgpa is None else Decimal(str(opportunity.min_cgpa))
     if minimum is not None:
         if student.cgpa is None:
             reasons.append(f"Needs a CGPA of {minimum:g}; the roster has none for you.")
-        elif Decimal(student.cgpa) < Decimal(minimum):
-            reasons.append(f"Needs a CGPA of {minimum:g}; the roster shows {student.cgpa:g}.")
+        elif Decimal(str(student.cgpa)) < minimum:
+            reasons.append(
+                f"Needs a CGPA of {minimum:g}; the roster shows {Decimal(str(student.cgpa)):g}."
+            )
 
     return (not reasons, reasons)

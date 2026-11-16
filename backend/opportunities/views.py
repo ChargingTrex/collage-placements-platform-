@@ -27,7 +27,7 @@ from rest_framework.response import Response
 from accounts.permissions import IsCompany, IsCompanyOrAdmin, IsPlacementAdmin, IsStudent
 from core.filters import ReportUnmatchedPrnsMixin
 from core.models import AuditLog
-from matching.engine import get_engine
+from matching.engine import calibrate_semantic, get_engine
 from matching.throttling import MatchingThrottle
 from notifications.services import notify_new_opportunity
 from opportunities import services
@@ -251,8 +251,14 @@ class OpportunityViewSet(
     @action(detail=True, methods=["post"])
     def apply(self, request, pk=None):
         # Not `get_object`: a student's queryset is open postings only, but a
-        # posting that closed since they saw it should say "not_open", not 404.
-        opportunity = get_object_or_404(Opportunity.objects.select_related("company"), pk=pk)
+        # posting that closed since they saw it should say "not_open". A draft,
+        # pending or rejected posting is still not theirs to see: 404.
+        opportunity = get_object_or_404(
+            Opportunity.objects.select_related("company").filter(
+                status__in=[Opportunity.Status.OPEN, Opportunity.Status.CLOSED]
+            ),
+            pk=pk,
+        )
         profile = get_or_create_profile(request.user)
         try:
             application = services.apply(opportunity, profile, request.user)
@@ -312,20 +318,23 @@ class OpportunityViewSet(
         applications = list(opportunity.applications.exclude(status=Application.Status.WITHDRAWN))
         by_id = {str(a.id): a for a in applications}
         engine = get_engine()
-        # The threshold is on the calibrated 0-100 scale, so one figure means
-        # the same on every backend. The engine cuts on its raw similarity, so
-        # map the figure back through the engine's own calibration bounds.
-        bounds = settings.MATCH_SCORE["CALIBRATION"].get(engine.backend_name) or {
-            "FLOOR": 0.0, "CEILING": 1.0,
-        }
-        raw_cut = bounds["FLOOR"] + (threshold / 100) * (bounds["CEILING"] - bounds["FLOOR"])
+        # The engine applies the hard filters and ranks by raw similarity over
+        # the snapshot text. Its own cut is switched off (below any score): the
+        # threshold is on the calibrated 0-100 scale, so one figure means the
+        # same on every backend, and the cut is made on that same number.
         result = engine.screen(
             {key: a.resume_text for key, a in by_id.items()},
             opportunity.description,
-            similarity_threshold=raw_cut,
+            similarity_threshold=-1.0,
             min_experience_years=min_years,
             required_education=levels or None,
         )
+
+        def calibrated(item) -> int:
+            return round(calibrate_semantic(item.similarity_score, engine.backend_name) * 100)
+
+        passed = [i for i in result.ranked if calibrated(i) >= threshold]
+        below = [i for i in result.ranked if calibrated(i) < threshold]
 
         def row(item, reason=""):
             application = by_id[item.identifier]
@@ -333,7 +342,8 @@ class OpportunityViewSet(
                 "application_id": item.identifier,
                 "prn": application.prn,
                 "full_name": application.full_name,
-                "score": application.score,
+                # The snapshot's calibrated similarity, the number the cut used.
+                "score": 0 if item.is_excluded else calibrated(item),
                 "experience_years": item.extracted.experience_years,
                 "education_levels": sorted(item.extracted.education_levels),
                 "reasons": [reason] if reason else [],
@@ -341,8 +351,8 @@ class OpportunityViewSet(
 
         return Response(
             {
-                "shortlisted": [row(i) for i in result.ranked],
-                "below_threshold": [row(i, f"Below the {threshold:g} cut.") for i in result.below_threshold],
+                "shortlisted": [row(i) for i in passed],
+                "below_threshold": [row(i, f"Below the {threshold:g} cut.") for i in below],
                 "filtered_out": [row(i, i.excluded_by) for i in result.excluded],
             }
         )
